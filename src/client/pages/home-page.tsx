@@ -1,4 +1,4 @@
-import { context } from '@devvit/web/client';
+import { context, showToast } from '@devvit/web/client';
 import { useMemo, useRef, useState } from 'react';
 import type { AlbumData } from '../../shared/api';
 import { getMockWavForBase } from '../ui/mock-audio';
@@ -28,18 +28,23 @@ export const HomePage = ({
   );
 
   const togglePlayPause = async () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current) {
+      console.error('Audio ref is null');
+      return;
+    }
 
     try {
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
       } else {
+        console.log('Attempting to play:', previewWav);
         await audioRef.current.play();
         setIsPlaying(true);
       }
     } catch (error) {
       console.error('Error playing audio:', error);
+      showToast('Could not play audio. Check console for details.');
     }
   };
 
@@ -87,7 +92,12 @@ export const HomePage = ({
               </div>
             </div>
 
-            <audio ref={audioRef} onEnded={() => setIsPlaying(false)}>
+            <audio 
+              ref={audioRef} 
+              onEnded={() => setIsPlaying(false)}
+              onError={(e) => console.error('Audio error:', e)}
+              onLoadedData={() => console.log('Audio loaded:', previewWav)}
+            >
               <source src={previewWav} type="audio/wav" />
             </audio>
 

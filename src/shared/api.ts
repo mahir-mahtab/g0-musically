@@ -34,4 +34,5 @@ export type GetPostResponse = {
   status: 'ok';
   album: AlbumData;
   participantCount: number;
+  createdBy?: string;
 } | ApiErrorResponse;

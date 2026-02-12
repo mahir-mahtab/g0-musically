@@ -191,11 +191,13 @@ api.get('/posts/:postId', async (c) => {
     };
 
     const participantCount = Number.parseInt(albumMeta.participantCount || '0', 10);
+    const createdBy = albumMeta.createdByUser || undefined;
 
     return c.json<GetPostResponse>({
       status: 'ok',
       album,
       participantCount,
+      createdBy,
     });
   } catch (error) {
     console.error('API Get Post Error:', error);
