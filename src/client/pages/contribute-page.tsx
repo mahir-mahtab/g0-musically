@@ -419,7 +419,14 @@ export const ContributePage = ({
 
   return (
     <div className="relative min-h-screen">
-      <AnimatedAlbumBackground />
+      {/* Static background image instead of animated */}
+      <div className="absolute inset-0 z-0 bg-gray-900">
+        <img 
+          src="/create_album_bg/frame_00_delay-0.1s.gif" 
+          alt="" 
+          className="w-full h-full object-cover opacity-20"
+        />
+      </div>
 
       <div className="relative z-10 min-h-screen px-3 py-4 sm:px-4 sm:py-6">
         <button
@@ -544,7 +551,9 @@ export const ContributePage = ({
 
             {/* Middle Section - Variations / Instructions */}
             <section className="border border-cyan-300/80 p-4 flex flex-col gap-3 lg:order-2">
-              <div className="text-xl font-pixel mb-2">Select an instrument</div>
+              <div className="text-xl font-pixel mb-2">
+                {selectedInstrument ? selectedInstrument.name : 'Select an instrument'}
+              </div>
 
               {selectedInstrument?.variations && selectedInstrument.variations.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
@@ -589,20 +598,37 @@ export const ContributePage = ({
 
             {/* Right Section - Instruments (icon rail) */}
             <section className="border border-cyan-300/80 p-2 flex lg:flex-col flex-row gap-2 overflow-x-auto lg:overflow-x-visible lg:order-3">
-              {instruments.map((instrument) => (
-                <button
-                  key={instrument.id}
-                  type="button"
-                  onClick={() => handleInstrumentClick(instrument)}
-                  className={`shrink-0 w-14 h-14 lg:w-full border border-cyan-300/80 hover:bg-cyan-300/10 transition-colors flex items-center justify-center ${
-                    selectedInstrument?.id === instrument.id ? 'bg-cyan-300/20' : ''
-                  }`}
-                  title={instrument.name}
-                  aria-label={instrument.name}
-                >
-                  <img src="/drum.png" alt="" className="w-8 h-8 object-contain" />
-                </button>
-              ))}
+              {instruments.map((instrument) => {
+                const iconMap: Record<string, string> = {
+                  'drums': '/instrument_icon/drums.png',
+                  'piano': '/instrument_icon/piano.png',
+                  'bass': '/instrument_icon/bass.png',
+                  'guitar': '/instrument_icon/guitar.png',
+                  'vinyl-fx': '/instrument_icon/vinyl fx.png',
+                  'synth': '/instrument_icon/synth.png',
+                  'pad': '/instrument_icon/pad.png',
+                  'percussion': '/instrument_icon/percussion.png',
+                };
+                
+                return (
+                  <button
+                    key={instrument.id}
+                    type="button"
+                    onClick={() => handleInstrumentClick(instrument)}
+                    className={`shrink-0 w-20 h-14 lg:w-full lg:h-14 border border-cyan-300/80 hover:bg-cyan-300/10 transition-colors flex items-center justify-center p-1 ${
+                      selectedInstrument?.id === instrument.id ? 'bg-cyan-300/20' : ''
+                    }`}
+                    title={instrument.name}
+                    aria-label={instrument.name}
+                  >
+                    {iconMap[instrument.id] ? (
+                      <img src={iconMap[instrument.id]} alt="" className="w-full h-full object-contain" />
+                    ) : (
+                      <span className="text-3xl">🎵</span>
+                    )}
+                  </button>
+                );
+              })}
             </section>
           </div>
         </div>

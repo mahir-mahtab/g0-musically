@@ -98,6 +98,12 @@ export const HomePage = ({
       return;
     }
 
+    // Don't play if there's no audio source (base is None)
+    if (!previewWav) {
+      showToast('No base track selected');
+      return;
+    }
+
     try {
       if (isPlaying) {
         audioRef.current.pause();
@@ -119,7 +125,14 @@ export const HomePage = ({
   if (isLoadingAlbum) {
     return (
       <div className="relative min-h-screen">
-        <AnimatedAlbumBackground />
+        {/* Static background image instead of animated */}
+        <div className="absolute inset-0 z-0 bg-gray-900">
+          <img 
+            src="/create_album_bg/frame_00_delay-0.1s.gif" 
+            alt="" 
+            className="w-full h-full object-cover opacity-20"
+          />
+        </div>
         <div className="relative z-10 flex flex-col justify-center items-center min-h-screen gap-6 px-4">
           <p className="text-lg text-white/80 font-pixel">Loading album...</p>
         </div>
@@ -130,7 +143,14 @@ export const HomePage = ({
   if (currentAlbum) {
     return (
       <div className="relative min-h-screen">
-        <AnimatedAlbumBackground />
+        {/* Static background image instead of animated */}
+        <div className="absolute inset-0 z-0 bg-gray-900">
+          <img 
+            src="/create_album_bg/frame_00_delay-0.1s.gif" 
+            alt="" 
+            className="w-full h-full object-cover opacity-20"
+          />
+        </div>
         <div className="relative z-10 flex flex-col justify-center items-center min-h-screen gap-6 px-4">
           <div className="max-w-4xl w-full border-2 border-white/60 bg-black/80 text-white px-5 py-5 shadow-2xl">
             <h1 className="text-sm font-pixel tracking-widest mb-4">CONTRIBUTE REDDIT POST</h1>
@@ -173,7 +193,7 @@ export const HomePage = ({
               onError={(e) => console.error('Audio error:', e)}
               onLoadedData={() => console.log('Audio loaded:', previewWav)}
             >
-              <source src={previewWav} type="audio/wav" />
+              {previewWav && <source src={previewWav} type="audio/wav" />}
             </audio>
 
             <div className="mt-4 border border-white/40 h-3 bg-black/40 relative overflow-hidden">
@@ -192,10 +212,6 @@ export const HomePage = ({
 
             <div className="text-[11px] font-pixel opacity-80 mt-1 text-center">
               {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')} / {Math.floor(currentAlbum.durationSec / 60)}:{Math.floor(currentAlbum.durationSec % 60).toString().padStart(2, '0')}
-            </div>
-
-            <div className="text-[10px] font-pixel opacity-70 mt-1 text-center inline-flex items-center justify-center gap-1 w-full">
-              <span className="w-2 h-2 bg-white/90 inline-block" /> Saved event markers
             </div>
 
             <div className="mt-4 flex items-center justify-between gap-3">
@@ -227,7 +243,14 @@ export const HomePage = ({
 
   return (
     <div className="relative min-h-screen">
-      <AnimatedAlbumBackground />
+      {/* Static background image instead of animated */}
+      <div className="absolute inset-0 z-0 bg-gray-900">
+        <img 
+          src="/create_album_bg/frame_00_delay-0.1s.gif" 
+          alt="" 
+          className="w-full h-full object-cover opacity-20"
+        />
+      </div>
       <div className="relative z-10 flex flex-col justify-center items-center min-h-screen gap-6 px-4">
         <img className="object-contain w-1/2 max-w-62.5 mx-auto" src="/snoo.png" alt="Snoo" />
 

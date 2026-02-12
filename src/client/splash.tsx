@@ -50,7 +50,7 @@ export const Splash = () => {
   if (album) {
     return (
       <div className="relative min-h-screen overflow-hidden bg-black">
-        <div className="relative z-10 flex flex-col justify-center items-center min-h-screen gap-4 px-4 py-6">
+        <div className="relative z-10 flex flex-col justify-center items-center min-h-screen gap-2 px-4 py-6">
           {/* Album Cover - Simple */}
           <div className="w-44 h-44 sm:w-52 sm:h-52 border-2 border-white/30 rounded overflow-hidden shadow-xl bg-black">
             {album.coverImage ? (
@@ -67,7 +67,7 @@ export const Splash = () => {
           </div>
 
           {/* Album Info */}
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-1">
             <h2 className="text-lg sm:text-xl font-pixel text-white">
               {album.name}
             </h2>
@@ -83,10 +83,14 @@ export const Splash = () => {
 
           {/* Simple Button */}
           <button
-            className="bg-white hover:bg-gray-200 text-black font-pixel font-bold px-5 sm:px-6 py-2 rounded shadow-lg transition-all text-xs sm:text-sm"
+            className="transition-all hover:scale-105 -mt-2"
             onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
           >
-            OPEN ALBUM 🎧
+            <img 
+              src="/contribute.png" 
+              alt="Open Album" 
+              className="w-auto h-auto max-w-[300px] object-contain drop-shadow-lg"
+            />
           </button>
         </div>
       </div>
@@ -109,16 +113,22 @@ export const Splash = () => {
           
           {/* Text and Button - Overlaid on bottom of GIF in the blue glow area */}
           {/* To adjust position: change bottom-8 value (bottom-4=16px, bottom-8=32px, bottom-12=48px) */}
-          <div className="absolute bottom-6 sm:bottom-8 left-0 right-0 flex flex-col items-center gap-0 z-20">
-            <h2 className="text-lg sm:text-xl font-pixel font-bold text-white tracking-wide drop-shadow-lg">
-              Build Your Music
-            </h2>
+          <div className="absolute bottom-2 sm:bottom-4 left-0 right-0 flex flex-col items-center gap-2 z-20">
+            <img 
+              src="/title.png" 
+              alt="Build Your Music" 
+              className="w-auto h-auto max-w-[80%] object-contain drop-shadow-lg"
+            />
 
             <button
-              className="bg-white hover:bg-gray-100 text-black font-pixel font-bold px-5 sm:px-6 py-2 border-4 border-white shadow-lg transition-all hover:scale-105 text-xs sm:text-sm mt-1"
+              className="transition-all hover:scale-105"
               onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
             >
-              CREATE ALBUM
+              <img 
+                src="/create_album_button.png" 
+                alt="Create Album" 
+                className="w-auto h-auto max-w-[300px] object-contain drop-shadow-lg"
+              />
             </button>
           </div>
         </div>

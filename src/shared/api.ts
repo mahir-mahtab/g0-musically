@@ -13,7 +13,7 @@ export type AlbumBase = 'None' | 'Lo-fi' | 'Hip-hop' | 'EDM' | 'Rock';
 export type AlbumVibe = 'Chill' | 'Hype' | 'Focus' | 'Sad';
 
 export const BASE_MUSIC_PATH_BY_BASE: Record<AlbumBase, string> = {
-  None: '/wavs/sine.wav',
+  None: '',
   'Lo-fi': '/wavs/collectathon.wav',
   'Hip-hop': '/wavs/overdrive.wav',
   EDM: '/wavs/synth.wav',
