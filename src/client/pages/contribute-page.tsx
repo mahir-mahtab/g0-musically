@@ -102,6 +102,15 @@ export const ContributePage = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const toMarkerLeftPercent = (offsetSec: number): number => {
+    if (clipDurationSec <= 0) {
+      return 0;
+    }
+
+    const normalized = Math.max(0, Math.min(offsetSec, clipDurationSec));
+    return (normalized / clipDurationSec) * 100;
+  };
+
   const togglePreview = async () => {
     if (!audioRef.current) return;
 
@@ -318,19 +327,16 @@ export const ContributePage = ({
   const handleBaseAudioEnded = () => {
     setIsPlaying(false);
     playedMainEventIndexesRef.current = new Set();
+    setCurrentTime(0);
 
     if (!isRecording) {
       return;
     }
 
     setIsRecording(false);
-
-    if (pendingEvents.length > 0) {
-      setShowPreviewModal(true);
-      return;
-    }
-
-    showToast('Recording ended with no events');
+    setPendingEvents([]);
+    setShowPreviewModal(false);
+    showToast('30s ended. Recording reset — start again from 0:00.');
   };
 
   const confirmContribution = async () => {
@@ -428,7 +434,7 @@ export const ContributePage = ({
           <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_88px] gap-3">
             {/* Left Section - Album & Controls */}
             <section className="border border-cyan-300/80 p-3 flex flex-col gap-3 lg:order-1">
-              <div className="aspect-square border border-cyan-300/80 flex items-center justify-center bg-black/40 overflow-hidden max-w-sm mx-auto lg:max-w-none">
+              <div className="aspect-square border border-cyan-300/80 flex items-center justify-center bg-black/40 overflow-hidden w-full max-w-52 sm:max-w-56 lg:max-w-48 mx-auto">
                 {album.coverImage ? (
                   <img 
                     src={album.coverImage} 
@@ -460,6 +466,20 @@ export const ContributePage = ({
                 className="border border-cyan-300/80 h-4 bg-black/40 cursor-pointer relative overflow-hidden"
                 onClick={handleProgressClick}
               >
+                {sortedTimelineEvents.map((event, index) => (
+                  <div
+                    key={`saved-marker-${event.sessionId}-${event.offsetSec}-${index}`}
+                    className="absolute inset-y-0 w-[2px] bg-cyan-100/90"
+                    style={{ left: `${toMarkerLeftPercent(event.offsetSec)}%` }}
+                  />
+                ))}
+                {pendingEvents.map((event, index) => (
+                  <div
+                    key={`pending-marker-${event.trackPath}-${event.offsetSec}-${index}`}
+                    className="absolute inset-y-0 w-[2px] bg-amber-300/90"
+                    style={{ left: `${toMarkerLeftPercent(event.offsetSec)}%` }}
+                  />
+                ))}
                 <div 
                   className="absolute inset-y-0 left-0 bg-cyan-300/60"
                   style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
@@ -469,6 +489,15 @@ export const ContributePage = ({
               {/* Time Display */}
               <div className="text-xs font-pixel text-white/80 text-center">
                 {formatTime(Math.min(currentTime, clipDurationSec))} / {formatTime(clipDurationSec)}
+              </div>
+
+              <div className="text-[10px] font-pixel text-cyan-100/70 text-center flex items-center justify-center gap-3">
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 bg-cyan-100/90 inline-block" /> Saved
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 bg-amber-300/90 inline-block" /> Pending
+                </span>
               </div>
 
               <div className="flex items-center gap-2 justify-center lg:justify-start">
@@ -588,7 +617,7 @@ export const ContributePage = ({
             </h2>
 
             {/* Album Cover */}
-            <div className="aspect-square max-h-64 sm:max-h-none border-2 border-cyan-300/60 bg-black/60 overflow-hidden mb-3 sm:mb-4 shadow-lg">
+            <div className="aspect-square max-h-48 sm:max-h-56 border-2 border-cyan-300/60 bg-black/60 overflow-hidden mb-3 sm:mb-4 shadow-lg mx-auto w-full max-w-56">
               {album.coverImage ? (
                 <img 
                   src={album.coverImage} 
@@ -636,6 +665,13 @@ export const ContributePage = ({
               className="border border-cyan-300/80 h-3 bg-black/60 cursor-pointer relative overflow-hidden mb-2 shadow-inner"
               onClick={handlePreviewProgressClick}
             >
+              {pendingEvents.map((event, index) => (
+                <div
+                  key={`preview-marker-${event.trackPath}-${event.offsetSec}-${index}`}
+                  className="absolute inset-y-0 w-[2px] bg-amber-300/90"
+                  style={{ left: `${toMarkerLeftPercent(event.offsetSec)}%` }}
+                />
+              ))}
               <div 
                 className="absolute inset-y-0 left-0 bg-linear-to-r from-cyan-400 to-cyan-600 transition-all"
                 style={{ width: `${previewDuration > 0 ? (previewTime / previewDuration) * 100 : 0}%` }}
@@ -645,6 +681,12 @@ export const ContributePage = ({
             {/* Time Display */}
             <div className="text-xs font-pixel text-cyan-300/80 text-center mb-3 sm:mb-4">
               {formatTime(Math.min(previewTime, clipDurationSec))} / {formatTime(clipDurationSec)}
+            </div>
+
+            <div className="text-[10px] font-pixel text-cyan-100/70 text-center mb-3">
+              <span className="inline-flex items-center gap-1">
+                <span className="w-2 h-2 bg-amber-300/90 inline-block" /> Pending markers
+              </span>
             </div>
 
             {/* Playback Controls */}

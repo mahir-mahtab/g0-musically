@@ -52,7 +52,7 @@ export const Splash = () => {
       <div className="relative min-h-screen overflow-hidden bg-black">
         <div className="relative z-10 flex flex-col justify-center items-center min-h-screen gap-4 px-4 py-6">
           {/* Album Cover - Simple */}
-          <div className="w-64 h-64 border-2 border-white/30 rounded overflow-hidden shadow-xl bg-black">
+          <div className="w-44 h-44 sm:w-52 sm:h-52 border-2 border-white/30 rounded overflow-hidden shadow-xl bg-black">
             {album.coverImage ? (
               <img 
                 src={album.coverImage} 
@@ -68,7 +68,7 @@ export const Splash = () => {
 
           {/* Album Info */}
           <div className="text-center space-y-2">
-            <h2 className="text-xl font-pixel text-white">
+            <h2 className="text-lg sm:text-xl font-pixel text-white">
               {album.name}
             </h2>
             {createdBy && (
@@ -83,7 +83,7 @@ export const Splash = () => {
 
           {/* Simple Button */}
           <button
-            className="bg-white hover:bg-gray-200 text-black font-pixel font-bold px-6 py-2 rounded shadow-lg transition-all text-sm"
+            className="bg-white hover:bg-gray-200 text-black font-pixel font-bold px-5 sm:px-6 py-2 rounded shadow-lg transition-all text-xs sm:text-sm"
             onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
           >
             OPEN ALBUM 🎧
@@ -97,7 +97,7 @@ export const Splash = () => {
   return (
     <div className="relative h-screen overflow-hidden bg-black">
       {/* Content Container */}
-      <div className="relative z-10 flex flex-col items-center justify-center h-full px-4">
+      <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 py-4">
         {/* GIF Container with overlaid text and button */}
         <div className="relative w-full max-w-xs aspect-[3/4] overflow-hidden rounded-lg shadow-2xl">
           <div className="absolute inset-0 -top-12">
@@ -109,13 +109,13 @@ export const Splash = () => {
           
           {/* Text and Button - Overlaid on bottom of GIF in the blue glow area */}
           {/* To adjust position: change bottom-8 value (bottom-4=16px, bottom-8=32px, bottom-12=48px) */}
-          <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-0 z-20">
-            <h2 className="text-xl font-pixel font-bold text-white tracking-wide drop-shadow-lg">
+          <div className="absolute bottom-6 sm:bottom-8 left-0 right-0 flex flex-col items-center gap-0 z-20">
+            <h2 className="text-lg sm:text-xl font-pixel font-bold text-white tracking-wide drop-shadow-lg">
               Build Your Music
             </h2>
 
             <button
-              className="bg-white hover:bg-gray-100 text-black font-pixel font-bold px-6 py-2 border-4 border-white shadow-lg transition-all hover:scale-105 text-sm mt-1"
+              className="bg-white hover:bg-gray-100 text-black font-pixel font-bold px-5 sm:px-6 py-2 border-4 border-white shadow-lg transition-all hover:scale-105 text-xs sm:text-sm mt-1"
               onClick={(e) => requestExpandedMode(e.nativeEvent, 'game')}
             >
               CREATE ALBUM

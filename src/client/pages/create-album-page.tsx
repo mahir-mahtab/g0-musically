@@ -94,20 +94,20 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
 
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
         <button
-          className="absolute top-4 left-4 text-xs font-pixel text-white/80 hover:text-white underline underline-offset-4"
+          className="absolute top-3 left-3 sm:top-4 sm:left-4 text-xs font-pixel text-white/80 hover:text-white underline underline-offset-4"
           onClick={onBack}
           type="button"
         >
           &lt; Back
         </button>
 
-        <div className="w-full max-w-4xl border-2 border-white/60 bg-black/80 text-white shadow-2xl">
-          <h1 className="text-lg font-pixel font-bold tracking-widest py-4 text-center border-b border-white/30">CREATE ALBUM</h1>
+        <div className="w-full max-w-4xl border-2 border-white/60 bg-black/80 text-white shadow-2xl mt-8 sm:mt-0">
+          <h1 className="text-base sm:text-lg font-pixel font-bold tracking-widest py-3 sm:py-4 text-center border-b border-white/30">CREATE ALBUM</h1>
 
-          <div className="grid grid-cols-[300px_1fr] gap-6 p-6">
+          <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 sm:gap-6 p-4 sm:p-6">
             {/* Left side - Album Cover Selector */}
-            <div className="flex flex-col gap-3">
-              <div className="aspect-square border-2 border-white/40 bg-black/60 overflow-hidden flex items-center justify-center">
+            <div className="flex flex-col gap-3 max-w-[220px] mx-auto w-full md:max-w-none">
+              <div className="aspect-square border-2 border-white/40 bg-black/60 overflow-hidden flex items-center justify-center max-w-[220px] mx-auto w-full">
                 {uploadedImage ? (
                   <img 
                     src={uploadedImage} 

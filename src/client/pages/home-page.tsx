@@ -39,6 +39,15 @@ export const HomePage = ({
     [timelineEvents]
   );
 
+  const toMarkerLeftPercent = (offsetSec: number): number => {
+    if (!currentAlbum || currentAlbum.durationSec <= 0) {
+      return 0;
+    }
+
+    const normalized = Math.max(0, Math.min(offsetSec, currentAlbum.durationSec));
+    return (normalized / currentAlbum.durationSec) * 100;
+  };
+
   const playTimelineSample = async (trackPath: string) => {
     try {
       const sample = new Audio(trackPath);
@@ -127,7 +136,7 @@ export const HomePage = ({
             <h1 className="text-sm font-pixel tracking-widest mb-4">CONTRIBUTE REDDIT POST</h1>
 
             <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
-              <div className="aspect-square border-2 border-white/50 bg-black/40 overflow-hidden">
+              <div className="aspect-square border-2 border-white/50 bg-black/40 overflow-hidden w-full max-w-44 sm:max-w-52 mx-auto">
                 {currentAlbum.coverImage ? (
                   <img 
                     src={currentAlbum.coverImage} 
@@ -157,6 +166,7 @@ export const HomePage = ({
               ref={audioRef} 
               onEnded={() => {
                 setIsPlaying(false);
+                setCurrentTime(0);
                 playedEventIndexesRef.current = new Set();
               }}
               onTimeUpdate={handleBaseTimeUpdate}
@@ -165,6 +175,28 @@ export const HomePage = ({
             >
               <source src={previewWav} type="audio/wav" />
             </audio>
+
+            <div className="mt-4 border border-white/40 h-3 bg-black/40 relative overflow-hidden">
+              {sortedTimelineEvents.map((event, index) => (
+                <div
+                  key={`${event.sessionId}-${event.offsetSec}-${index}`}
+                  className="absolute inset-y-0 w-[2px] bg-white/90"
+                  style={{ left: `${toMarkerLeftPercent(event.offsetSec)}%` }}
+                />
+              ))}
+              <div
+                className="absolute inset-y-0 left-0 bg-white/50"
+                style={{ width: `${currentAlbum.durationSec > 0 ? (currentTime / currentAlbum.durationSec) * 100 : 0}%` }}
+              />
+            </div>
+
+            <div className="text-[11px] font-pixel opacity-80 mt-1 text-center">
+              {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')} / {Math.floor(currentAlbum.durationSec / 60)}:{Math.floor(currentAlbum.durationSec % 60).toString().padStart(2, '0')}
+            </div>
+
+            <div className="text-[10px] font-pixel opacity-70 mt-1 text-center inline-flex items-center justify-center gap-1 w-full">
+              <span className="w-2 h-2 bg-white/90 inline-block" /> Saved event markers
+            </div>
 
             <div className="mt-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
