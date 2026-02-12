@@ -9,9 +9,18 @@ export type ApiInitResponse = {
   subredditName: string | null;
 };
 
+export type AlbumData = {
+  name: string;
+  base: 'None' | 'Lo-fi' | 'Hip-hop' | 'EDM' | 'Rock';
+  vibe: 'Chill' | 'Hype' | 'Focus' | 'Sad';
+  durationSec: number;
+  maxContributors: number;
+};
+
 export type CreatePostRequest = {
   title: string;
   body?: string;
+  album?: AlbumData;
 };
 
 export type CreatePostResponse = {
@@ -19,3 +28,9 @@ export type CreatePostResponse = {
   postId: string;
   url: string;
 };
+
+export type GetPostResponse = {
+  status: 'ok';
+  album: AlbumData;
+  participantCount: number;
+} | ApiErrorResponse;
