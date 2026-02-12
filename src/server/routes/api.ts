@@ -19,7 +19,7 @@ import type {
 
 export const api = new Hono();
 
-const albumBases = ['None', 'Lo-fi', 'Hip-hop', 'EDM', 'Rock'];
+const albumBases = ['None', 'Lo-fi', 'Hip-hop', 'EDM', 'Rock', 'Custom'];
 const albumVibes = ['Chill', 'Hype', 'Focus', 'Sad'];
 
 const isAlbumBase = (value: string): value is AlbumBase => {
@@ -184,6 +184,11 @@ const toValidatedAlbum = (album: CreatePostRequest['album']): AlbumData | undefi
   const durationSec = Number.isFinite(album.durationSec) ? album.durationSec : 30;
   const maxContributors = Number.isFinite(album.maxContributors) ? album.maxContributors : 5;
   const coverImage = typeof album.coverImage === 'string' ? album.coverImage : undefined;
+  
+  // Use provided baseMusicPath if available (for custom uploads), otherwise use default
+  const baseMusicPath = typeof album.baseMusicPath === 'string' && album.baseMusicPath 
+    ? album.baseMusicPath 
+    : toBaseMusicPath(base);
 
   if (!name) {
     return undefined;
@@ -193,7 +198,7 @@ const toValidatedAlbum = (album: CreatePostRequest['album']): AlbumData | undefi
     name,
     base,
     vibe,
-    baseMusicPath: toBaseMusicPath(base),
+    baseMusicPath,
     durationSec,
     maxContributors,
     coverImage,
@@ -245,13 +250,15 @@ api.post('/posts', async (c) => {
 
     const ugcText = body || title;
     
-    // Extract coverImage to store separately in Redis
+    // Extract coverImage and baseMusicPath to store separately in Redis
     const coverImage = album?.coverImage;
-    const albumWithoutImage = album ? {
+    const customBaseMusicPath = album?.base === 'Custom' ? album.baseMusicPath : undefined;
+    
+    const albumWithoutLargeData = album ? {
       name: album.name,
       base: album.base,
       vibe: album.vibe,
-      baseMusicPath: album.baseMusicPath,
+      baseMusicPath: album.base === 'Custom' ? '' : album.baseMusicPath, // Empty for custom, will be stored in Redis
       durationSec: album.durationSec,
       maxContributors: album.maxContributors,
     } : undefined;
@@ -267,7 +274,7 @@ api.post('/posts', async (c) => {
       postData: {
         title,
         body,
-        ...(albumWithoutImage && { album: albumWithoutImage }),
+        ...(albumWithoutLargeData && { album: albumWithoutLargeData }),
       },
       textFallback: {
         text: ugcText,
@@ -284,7 +291,7 @@ api.post('/posts', async (c) => {
         name: album.name,
         base: album.base,
         vibe: album.vibe,
-        baseMusicPath: album.baseMusicPath,
+        baseMusicPath: customBaseMusicPath || album.baseMusicPath, // Store custom audio in Redis
         durationSec: String(album.durationSec),
         maxContributors: String(album.maxContributors),
         ...(coverImage && { coverImage }),

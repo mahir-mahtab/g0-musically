@@ -18,6 +18,8 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
   const [durationSec, setDurationSec] = useState(30);
   const [maxContributors, setMaxContributors] = useState(5);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedAudio, setUploadedAudio] = useState<string | null>(null);
+  const [uploadedAudioDuration, setUploadedAudioDuration] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -30,6 +32,38 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         setUploadedImage(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAudioUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('Audio must be less than 10MB');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const audioData = event.target?.result as string;
+        setUploadedAudio(audioData);
+        setBase('Custom'); // Automatically set base to Custom
+        
+        // Create audio element to get duration
+        const audio = new Audio(audioData);
+        audio.onloadedmetadata = () => {
+          const duration = Math.floor(audio.duration);
+          setUploadedAudioDuration(duration);
+          setDurationSec(duration);
+          showToast(`Audio uploaded! Duration: ${duration}s`);
+        };
+        audio.onerror = () => {
+          showToast('Failed to load audio file');
+          setUploadedAudio(null);
+          setBase('None');
+        };
       };
       reader.readAsDataURL(file);
     }
@@ -49,7 +83,7 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
         name: albumName.trim(),
         base,
         vibe,
-        baseMusicPath: getMockWavForBase(base),
+        baseMusicPath: uploadedAudio || getMockWavForBase(base),
         durationSec,
         maxContributors,
         ...(uploadedImage && { coverImage: uploadedImage }),
@@ -157,10 +191,44 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
               label="Base"
               value={base}
               onChange={setBase}
-              options={['None', 'Lo-fi', 'Hip-hop', 'EDM', 'Rock']}
+              options={['None', 'Lo-fi', 'Hip-hop', 'EDM', 'Rock', 'Custom']}
               formatValue={(v) => `BASE: ${v}`}
               hideLabel
+              disabled={uploadedAudio !== null}
             />
+
+            {/* Custom Base Track Upload */}
+            <div className="border-2 border-white/40 bg-black/40 p-3">
+              <div className="text-xs font-pixel text-white/80 mb-2">CUSTOM BASE TRACK</div>
+              <label className="w-full bg-white/10 hover:bg-white/20 border-2 border-white/40 text-white font-pixel text-xs py-2 px-3 cursor-pointer text-center transition-all block">
+                {uploadedAudio ? '✓ AUDIO UPLOADED' : 'UPLOAD AUDIO FILE'}
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={handleAudioUpload}
+                  className="hidden"
+                />
+              </label>
+              {uploadedAudio && (
+                <div className="mt-2 flex flex-col gap-2">
+                  <div className="text-xs font-pixel text-white/60">
+                    Duration: {uploadedAudioDuration}s
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadedAudio(null);
+                      setUploadedAudioDuration(null);
+                      setDurationSec(30);
+                      setBase('None');
+                    }}
+                    className="w-full bg-red-600/80 hover:bg-red-600 text-white font-pixel text-xs py-1 px-2 transition-all"
+                  >
+                    REMOVE AUDIO
+                  </button>
+                </div>
+              )}
+            </div>
 
             <PixelSelect<AlbumVibe>
               label="Vibe"
@@ -178,6 +246,7 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
               options={[15, 30, 45, 60]}
               formatValue={(v) => `DURATION: ${v} SEC`}
               hideLabel
+              disabled={uploadedAudio !== null}
             />
 
             <PixelSelect<number>

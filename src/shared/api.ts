@@ -9,7 +9,7 @@ export type ApiInitResponse = {
   subredditName: string | null;
 };
 
-export type AlbumBase = 'None' | 'Lo-fi' | 'Hip-hop' | 'EDM' | 'Rock';
+export type AlbumBase = 'None' | 'Lo-fi' | 'Hip-hop' | 'EDM' | 'Rock' | 'Custom';
 export type AlbumVibe = 'Chill' | 'Hype' | 'Focus' | 'Sad';
 
 export const BASE_MUSIC_PATH_BY_BASE: Record<AlbumBase, string> = {
@@ -18,6 +18,7 @@ export const BASE_MUSIC_PATH_BY_BASE: Record<AlbumBase, string> = {
   'Hip-hop': '/wavs/overdrive.wav',
   EDM: '/wavs/synth.wav',
   Rock: '/wavs/gc.wav',
+  Custom: '',
 };
 
 export type AlbumData = {
