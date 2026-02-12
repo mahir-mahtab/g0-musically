@@ -1,12 +1,22 @@
-import { showToast } from '@devvit/web/client';
+import { context, showToast } from '@devvit/web/client';
+import type { MouseEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
-import type { AlbumData } from '../../shared/api';
+import type {
+  AlbumData,
+  ContributionEvent,
+  ContributionSession,
+  CreateContributionRequest,
+  TimelineEvent,
+} from '../../shared/api';
 import { AnimatedAlbumBackground } from '../ui/animated-album-background';
-import { getMockWavForBase } from '../ui/mock-audio';
+import { getAlbumBaseMusicPath } from '../ui/mock-audio';
 
 type ContributePageProps = {
   album: AlbumData;
   participantCount: number;
+  timelineEvents: TimelineEvent[];
+  contributionSessions: ContributionSession[];
+  onContributionSaved: () => Promise<void>;
   onBack: () => void;
 };
 
@@ -48,10 +58,24 @@ const instruments: Instrument[] = [
   { id: 'percussion', name: 'Percussion' },
 ];
 
-export const ContributePage = ({ album, participantCount: _participantCount, onBack }: ContributePageProps) => {
+const isObjectRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null;
+};
+
+export const ContributePage = ({
+  album,
+  participantCount,
+  timelineEvents,
+  contributionSessions,
+  onContributionSaved,
+  onBack,
+}: ContributePageProps) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const playedMainEventIndexesRef = useRef<Set<number>>(new Set());
+  const playedPreviewEventIndexesRef = useRef<Set<number>>(new Set());
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -62,8 +86,15 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
   const [previewDuration, setPreviewDuration] = useState(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [isPreviewLooping, setIsPreviewLooping] = useState(false);
+  const [pendingEvents, setPendingEvents] = useState<ContributionEvent[]>([]);
+  const [isSavingContribution, setIsSavingContribution] = useState(false);
 
-  const previewWav = useMemo(() => getMockWavForBase(album.base), [album.base]);
+  const previewWav = useMemo(() => getAlbumBaseMusicPath(album), [album]);
+  const sortedTimelineEvents = useMemo(
+    () => [...timelineEvents].sort((first, second) => first.offsetSec - second.offsetSec),
+    [timelineEvents]
+  );
+  const clipDurationSec = album.durationSec;
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -78,7 +109,9 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
+        playedMainEventIndexesRef.current = new Set();
       } else {
+        playedMainEventIndexesRef.current = new Set();
         await audioRef.current.play();
         setIsPlaying(true);
       }
@@ -97,37 +130,116 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
+      const nextTime = audioRef.current.currentTime;
+
+      if (nextTime < currentTime) {
+        playedMainEventIndexesRef.current = new Set();
+      }
+
+      if (nextTime >= clipDurationSec) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        setCurrentTime(clipDurationSec);
+        handleBaseAudioEnded();
+        return;
+      }
+
+      setCurrentTime(nextTime);
+
+      sortedTimelineEvents.forEach((event, index) => {
+        if (playedMainEventIndexesRef.current.has(index)) {
+          return;
+        }
+
+        if (event.offsetSec <= nextTime) {
+          playedMainEventIndexesRef.current.add(index);
+          void playVariationPreview(event.trackPath);
+        }
+      });
     }
   };
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
-      setDuration(audioRef.current.duration);
+      setDuration(Math.min(audioRef.current.duration, clipDurationSec));
     }
   };
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleProgressClick = (e: MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
-    audioRef.current.currentTime = percentage * duration;
+    audioRef.current.currentTime = percentage * clipDurationSec;
+    playedMainEventIndexesRef.current = new Set();
   };
 
-  const startRecording = () => {
-    // Backend needed: create session/track and persist contribution metadata in Redis.
-    if (!selectedVariation) {
-      showToast('Please select a variation first');
+  const playVariationPreview = async (trackPath: string) => {
+    try {
+      const sample = new Audio(trackPath);
+      sample.currentTime = 0;
+      await sample.play();
+    } catch (error) {
+      console.error('Variation sample preview error:', error);
+    }
+  };
+
+  const addPendingEvent = (variation: InstrumentVariation) => {
+    if (!isRecording || !audioRef.current || !selectedInstrument) {
       return;
     }
-    showToast(`Recording ${selectedVariation.name}...`);
-    
-    // Simulate recording completion after 2 seconds
-    setTimeout(() => {
-      showToast('Recording complete!');
-      setShowPreviewModal(true);
-    }, 2000);
+
+    const offsetSec = Number(Math.min(audioRef.current.currentTime, clipDurationSec).toFixed(3));
+    const event: ContributionEvent = {
+      instrumentId: selectedInstrument.id,
+      variationName: variation.name,
+      trackPath: variation.file,
+      offsetSec,
+    };
+
+    setPendingEvents((current) => [...current, event]);
+  };
+
+  const startRecording = async () => {
+    if (!selectedInstrument) {
+      showToast('Select an instrument first');
+      return;
+    }
+
+    if (!audioRef.current) {
+      showToast('Base track not ready yet');
+      return;
+    }
+
+    try {
+      playedMainEventIndexesRef.current = new Set();
+      audioRef.current.currentTime = 0;
+      await audioRef.current.play();
+      setPendingEvents([]);
+      setIsPlaying(true);
+      setIsRecording(true);
+      showToast('Recording started. Tap variation buttons to add events.');
+    } catch (error) {
+      console.error('Recording start error:', error);
+      showToast('Could not start recording');
+    }
+  };
+
+  const stopRecording = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    playedMainEventIndexesRef.current = new Set();
+    setIsPlaying(false);
+    setIsRecording(false);
+
+    if (pendingEvents.length === 0) {
+      showToast('No events recorded yet');
+      return;
+    }
+
+    setShowPreviewModal(true);
   };
 
   const togglePreviewPlayback = async () => {
@@ -137,7 +249,10 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
       if (isPreviewPlaying) {
         previewAudioRef.current.pause();
         setIsPreviewPlaying(false);
+        playedPreviewEventIndexesRef.current = new Set();
       } else {
+        playedPreviewEventIndexesRef.current = new Set();
+        previewAudioRef.current.currentTime = 0;
         await previewAudioRef.current.play();
         setIsPreviewPlaying(true);
       }
@@ -156,38 +271,129 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
 
   const handlePreviewTimeUpdate = () => {
     if (previewAudioRef.current) {
-      setPreviewTime(previewAudioRef.current.currentTime);
+      const nextTime = previewAudioRef.current.currentTime;
+      if (nextTime < previewTime) {
+        playedPreviewEventIndexesRef.current = new Set();
+      }
+
+      if (nextTime >= clipDurationSec) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current.currentTime = 0;
+        setPreviewTime(clipDurationSec);
+        setIsPreviewPlaying(false);
+        playedPreviewEventIndexesRef.current = new Set();
+        return;
+      }
+
+      setPreviewTime(nextTime);
+
+      pendingEvents.forEach((event, index) => {
+        if (playedPreviewEventIndexesRef.current.has(index)) {
+          return;
+        }
+
+        if (event.offsetSec <= nextTime) {
+          playedPreviewEventIndexesRef.current.add(index);
+          void playVariationPreview(event.trackPath);
+        }
+      });
     }
   };
 
   const handlePreviewLoadedMetadata = () => {
     if (previewAudioRef.current) {
-      setPreviewDuration(previewAudioRef.current.duration);
+      setPreviewDuration(Math.min(previewAudioRef.current.duration, clipDurationSec));
     }
   };
 
-  const handlePreviewProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handlePreviewProgressClick = (e: MouseEvent<HTMLDivElement>) => {
     if (!previewAudioRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
-    previewAudioRef.current.currentTime = percentage * previewDuration;
+    previewAudioRef.current.currentTime = percentage * clipDurationSec;
+    playedPreviewEventIndexesRef.current = new Set();
   };
 
-  const confirmContribution = () => {
-    // Backend needed: finalize contribution and update Redis
-    showToast('Contribution confirmed! 🎉');
-    setShowPreviewModal(false);
-    setIsPreviewPlaying(false);
-    if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.currentTime = 0;
+  const handleBaseAudioEnded = () => {
+    setIsPlaying(false);
+    playedMainEventIndexesRef.current = new Set();
+
+    if (!isRecording) {
+      return;
+    }
+
+    setIsRecording(false);
+
+    if (pendingEvents.length > 0) {
+      setShowPreviewModal(true);
+      return;
+    }
+
+    showToast('Recording ended with no events');
+  };
+
+  const confirmContribution = async () => {
+    const postId = context.postId;
+    if (!postId) {
+      showToast('Missing post context for saving contribution');
+      return;
+    }
+
+    if (pendingEvents.length === 0) {
+      showToast('No events to save');
+      return;
+    }
+
+    setIsSavingContribution(true);
+
+    try {
+      const payload: CreateContributionRequest = {
+        events: [...pendingEvents].sort((first, second) => first.offsetSec - second.offsetSec),
+      };
+
+      const response = await fetch(`/api/posts/${postId}/contributions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data: unknown = await response.json();
+
+      if (!isObjectRecord(data) || typeof data.status !== 'string') {
+        throw new Error('Unexpected server response');
+      }
+
+      if (!response.ok || data.status !== 'ok') {
+        const message = typeof data.message === 'string' ? data.message : 'Failed to save contribution';
+        throw new Error(message);
+      }
+
+      const savedEventCount =
+        isObjectRecord(data.session) && Array.isArray(data.session.events)
+          ? data.session.events.length
+          : pendingEvents.length;
+
+      await onContributionSaved();
+      showToast(`Saved ${savedEventCount} events 🎉`);
+      setPendingEvents([]);
+      setShowPreviewModal(false);
+      setIsPreviewPlaying(false);
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current.currentTime = 0;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save contribution';
+      showToast(message);
+    } finally {
+      setIsSavingContribution(false);
     }
   };
 
   const cancelPreview = () => {
     setShowPreviewModal(false);
     setIsPreviewPlaying(false);
+    playedPreviewEventIndexesRef.current = new Set();
     if (previewAudioRef.current) {
       previewAudioRef.current.pause();
       previewAudioRef.current.currentTime = 0;
@@ -197,6 +403,12 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
   const handleInstrumentClick = (instrument: Instrument) => {
     setSelectedInstrument(instrument);
     setSelectedVariation(null);
+  };
+
+  const handleVariationClick = (variation: InstrumentVariation) => {
+    setSelectedVariation(variation);
+    void playVariationPreview(variation.file);
+    addPendingEvent(variation);
   };
 
   return (
@@ -236,7 +448,7 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
 
               <audio 
                 ref={audioRef} 
-                onEnded={() => setIsPlaying(false)}
+                onEnded={handleBaseAudioEnded}
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
               >
@@ -256,7 +468,7 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
 
               {/* Time Display */}
               <div className="text-xs font-pixel text-white/80 text-center">
-                {formatTime(currentTime)} / {formatTime(duration)}
+                {formatTime(Math.min(currentTime, clipDurationSec))} / {formatTime(clipDurationSec)}
               </div>
 
               <div className="flex items-center gap-2 justify-center lg:justify-start">
@@ -283,10 +495,22 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
               <button
                 className="border border-cyan-300/80 px-4 py-2 text-center font-pixel text-base hover:bg-cyan-300/10 active:bg-cyan-300/20"
                 type="button"
-                onClick={startRecording}
+                onClick={isRecording ? stopRecording : startRecording}
               >
-                Start Rec
+                {isRecording ? 'Stop Recording' : 'Start Recording'}
               </button>
+
+              <div className="text-xs font-pixel text-cyan-100/80">
+                Pending events: {pendingEvents.length}
+              </div>
+
+              <div className="text-xs font-pixel text-cyan-100/80">
+                Contributors: {participantCount}/{album.maxContributors}
+              </div>
+
+              <div className="text-xs font-pixel text-cyan-100/80">
+                Saved sessions: {contributionSessions.length}
+              </div>
             </section>
 
             {/* Middle Section - Variations / Instructions */}
@@ -299,7 +523,7 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
                     <button
                       key={variation.file}
                       type="button"
-                      onClick={() => setSelectedVariation(variation)}
+                      onClick={() => handleVariationClick(variation)}
                       className={`border border-cyan-300/80 px-3 py-2 text-xs font-pixel hover:bg-cyan-300/10 active:bg-cyan-300/20 transition-colors ${
                         selectedVariation?.file === variation.file ? 'bg-cyan-300/20' : ''
                       }`}
@@ -317,6 +541,21 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
                   Choose an instrument from the list to see available variations
                 </div>
               )}
+
+              <div className="mt-2 border border-cyan-300/40 bg-black/40 p-2">
+                <div className="text-xs font-pixel text-cyan-200 mb-2">Existing timeline events</div>
+                <div className="max-h-32 overflow-y-auto text-[11px] font-pixel text-white/80 space-y-1 pr-1">
+                  {sortedTimelineEvents.length === 0 ? (
+                    <div className="text-white/50">No saved events yet</div>
+                  ) : (
+                    sortedTimelineEvents.map((event, index) => (
+                      <div key={`${event.sessionId}-${event.offsetSec}-${index}`} className="border-b border-cyan-300/20 pb-1">
+                        {formatTime(event.offsetSec)} · {event.variationName}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </section>
 
             {/* Right Section - Instruments (icon rail) */}
@@ -326,7 +565,7 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
                   key={instrument.id}
                   type="button"
                   onClick={() => handleInstrumentClick(instrument)}
-                  className={`flex-shrink-0 w-14 h-14 lg:w-full border border-cyan-300/80 hover:bg-cyan-300/10 transition-colors flex items-center justify-center ${
+                  className={`shrink-0 w-14 h-14 lg:w-full border border-cyan-300/80 hover:bg-cyan-300/10 transition-colors flex items-center justify-center ${
                     selectedInstrument?.id === instrument.id ? 'bg-cyan-300/20' : ''
                   }`}
                   title={instrument.name}
@@ -342,14 +581,14 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
 
       {/* Preview Modal */}
       {showPreviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md border-2 border-cyan-300/80 bg-gradient-to-br from-black via-gray-900 to-black p-6 shadow-2xl">
-            <h2 className="text-xl font-pixel text-center text-cyan-300 mb-6 tracking-wider">
-              PREVIEW YOUR CONTRIBUTION
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto border-2 border-cyan-300/80 bg-linear-to-br from-black via-gray-900 to-black p-4 sm:p-6 shadow-2xl">
+            <h2 className="text-lg sm:text-xl font-pixel text-center text-cyan-300 mb-4 sm:mb-6 tracking-wider">
+              PREVIEW YOUR CONTRIBUTION ({pendingEvents.length} EVENTS)
             </h2>
 
             {/* Album Cover */}
-            <div className="aspect-square border-2 border-cyan-300/60 bg-black/60 overflow-hidden mb-4 shadow-lg">
+            <div className="aspect-square max-h-64 sm:max-h-none border-2 border-cyan-300/60 bg-black/60 overflow-hidden mb-3 sm:mb-4 shadow-lg">
               {album.coverImage ? (
                 <img 
                   src={album.coverImage} 
@@ -364,14 +603,28 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
             </div>
 
             {/* Album Name */}
-            <div className="text-center font-pixel text-white/90 mb-4">
+            <div className="text-center text-xs sm:text-sm font-pixel text-white/90 mb-3 sm:mb-4">
               {album.name}
+            </div>
+
+            <div className="border border-cyan-300/40 bg-black/40 p-2 mb-3 sm:mb-4">
+              <div className="text-[11px] font-pixel text-cyan-200 mb-1">Captured events</div>
+              <div className="max-h-24 overflow-y-auto text-[11px] font-pixel text-white/85 space-y-1 pr-1">
+                {pendingEvents.map((event, index) => (
+                  <div key={`${event.trackPath}-${event.offsetSec}-${index}`} className="border-b border-cyan-300/20 pb-1">
+                    {formatTime(event.offsetSec)} · {event.variationName}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Audio Element */}
             <audio 
               ref={previewAudioRef}
-              onEnded={() => setIsPreviewPlaying(false)}
+              onEnded={() => {
+                setIsPreviewPlaying(false);
+                playedPreviewEventIndexesRef.current = new Set();
+              }}
               onTimeUpdate={handlePreviewTimeUpdate}
               onLoadedMetadata={handlePreviewLoadedMetadata}
             >
@@ -384,18 +637,18 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
               onClick={handlePreviewProgressClick}
             >
               <div 
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-400 to-cyan-600 transition-all"
+                className="absolute inset-y-0 left-0 bg-linear-to-r from-cyan-400 to-cyan-600 transition-all"
                 style={{ width: `${previewDuration > 0 ? (previewTime / previewDuration) * 100 : 0}%` }}
               />
             </div>
 
             {/* Time Display */}
-            <div className="text-xs font-pixel text-cyan-300/80 text-center mb-4">
-              {formatTime(previewTime)} / {formatTime(previewDuration)}
+            <div className="text-xs font-pixel text-cyan-300/80 text-center mb-3 sm:mb-4">
+              {formatTime(Math.min(previewTime, clipDurationSec))} / {formatTime(clipDurationSec)}
             </div>
 
             {/* Playback Controls */}
-            <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="flex items-center justify-center gap-3 mb-4 sm:mb-6">
               <button
                 className="h-12 w-12 rounded-full border-2 border-cyan-300/80 text-white font-pixel hover:bg-cyan-300/20 flex items-center justify-center text-lg transition-all hover:scale-105"
                 type="button"
@@ -416,20 +669,21 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="sticky bottom-0 bg-linear-to-t from-black via-black to-transparent pt-2 flex gap-2 sm:gap-3">
               <button
-                className="flex-1 border-2 border-white/40 text-white font-pixel py-3 hover:bg-white/10 transition-all"
+                className="flex-1 border-2 border-white/40 text-white font-pixel py-3 hover:bg-white/10 transition-all text-sm"
                 type="button"
                 onClick={cancelPreview}
               >
                 CANCEL
               </button>
               <button
-                className="flex-1 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white font-pixel font-bold py-3 border-2 border-cyan-400/50 transition-all shadow-lg hover:shadow-cyan-500/50"
+                className="flex-1 bg-linear-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white font-pixel font-bold py-3 border-2 border-cyan-400/50 transition-all shadow-lg hover:shadow-cyan-500/50 text-sm"
                 type="button"
                 onClick={confirmContribution}
+                disabled={isSavingContribution}
               >
-                CONFIRM
+                {isSavingContribution ? 'SAVING...' : 'CONFIRM'}
               </button>
             </div>
           </div>

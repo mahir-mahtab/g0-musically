@@ -1,27 +1,26 @@
 import { showToast, navigateTo } from '@devvit/web/client';
+import type { ChangeEvent } from 'react';
 import { useMemo, useState } from 'react';
 import { AnimatedAlbumBackground } from '../ui/animated-album-background';
 import { PixelField } from '../ui/pixel-field';
 import { PixelSelect } from '../ui/pixel-select';
-import type { AlbumData, CreatePostRequest } from '../../shared/api';
+import type { AlbumBase, AlbumData, AlbumVibe, CreatePostRequest } from '../../shared/api';
+import { getMockWavForBase } from '../ui/mock-audio';
 
 type CreateAlbumPageProps = {
   onBack: () => void;
 };
 
-type Vibe = 'Chill' | 'Hype' | 'Focus' | 'Sad';
-type Base = 'None' | 'Lo-fi' | 'Hip-hop' | 'EDM' | 'Rock';
-
 export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
   const [albumName, setAlbumName] = useState('');
-  const [base, setBase] = useState<Base>('None');
-  const [vibe, setVibe] = useState<Vibe>('Chill');
+  const [base, setBase] = useState<AlbumBase>('None');
+  const [vibe, setVibe] = useState<AlbumVibe>('Chill');
   const [durationSec, setDurationSec] = useState(30);
   const [maxContributors, setMaxContributors] = useState(5);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -50,6 +49,7 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
         name: albumName.trim(),
         base,
         vibe,
+        baseMusicPath: getMockWavForBase(base),
         durationSec,
         maxContributors,
         ...(uploadedImage && { coverImage: uploadedImage }),
@@ -153,7 +153,7 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
               hideLabel
             />
 
-            <PixelSelect<Base>
+            <PixelSelect<AlbumBase>
               label="Base"
               value={base}
               onChange={setBase}
@@ -162,7 +162,7 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
               hideLabel
             />
 
-            <PixelSelect<Vibe>
+            <PixelSelect<AlbumVibe>
               label="Vibe"
               value={vibe}
               onChange={setVibe}

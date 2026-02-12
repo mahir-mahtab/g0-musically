@@ -1,12 +1,11 @@
 import './index.css';
 
-import { navigateTo, context as webContext } from '@devvit/web/client';
+import { context as webContext } from '@devvit/web/client';
 import { requestExpandedMode } from '@devvit/web/client';
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { AlbumData } from '../shared/api';
 import { AnimatedSplashBackground } from './ui/animated-splash-background';
-import { AnimatedAlbumThumbnailBg } from './ui/animated-album-thumbnail-bg';
 
 export const Splash = () => {
   const [album, setAlbum] = useState<AlbumData | null>(null);
@@ -37,7 +36,7 @@ export const Splash = () => {
       }
     };
 
-    fetchAlbum();
+    void fetchAlbum();
   }, []);
 
   // Show loading state while fetching - keep it minimal to prevent flash

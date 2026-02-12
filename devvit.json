@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "test-mumtio",
+  "name": "g0-musically",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -13,7 +13,7 @@
       }
     }
   },
-  "server": {
+  "server": { 
     "dir": "dist/server",
     "entry": "index.cjs"
   },
@@ -41,6 +41,6 @@
     "build": "vite build"
   },
   "dev": {
-    "subreddit": "test_mumtio_dev"
+    "subreddit": "g0_musically_dev"
   }
 }

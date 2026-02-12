@@ -12,16 +12,12 @@ export const AnimatedAlbumBackground = () => {
   );
 
   const [frameIndex, setFrameIndex] = useState(0);
-  const [preloaded, setPreloaded] = useState(false);
 
   useEffect(() => {
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
     if (reducedMotion) {
-      setPreloaded(true);
       return;
     }
-
-    let cancelled = false;
 
     const preloadOne = async (src: string) => {
       const img = new Image();
@@ -35,18 +31,10 @@ export const AnimatedAlbumBackground = () => {
     };
 
     const preload = async () => {
-      try {
-        await Promise.all(frames.map(preloadOne));
-      } finally {
-        if (!cancelled) setPreloaded(true);
-      }
+      await Promise.all(frames.map(preloadOne));
     };
 
     void preload();
-
-    return () => {
-      cancelled = true;
-    };
   }, [frames]);
 
   useEffect(() => {

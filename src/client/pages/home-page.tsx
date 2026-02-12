@@ -1,7 +1,7 @@
 import { context, showToast } from '@devvit/web/client';
 import { useMemo, useRef, useState } from 'react';
-import type { AlbumData } from '../../shared/api';
-import { getMockWavForBase } from '../ui/mock-audio';
+import type { AlbumData, TimelineEvent } from '../../shared/api';
+import { getAlbumBaseMusicPath } from '../ui/mock-audio';
 import { AnimatedAlbumBackground } from '../ui/animated-album-background';
 
 type HomePageProps = {
@@ -9,6 +9,9 @@ type HomePageProps = {
   onContribute: () => void;
   currentAlbum?: AlbumData | null;
   participantCount?: number;
+  timelineEventCount?: number;
+  contributionSessionCount?: number;
+  timelineEvents?: TimelineEvent[];
   isLoadingAlbum?: boolean;
 };
 
@@ -17,15 +20,68 @@ export const HomePage = ({
   onContribute,
   currentAlbum,
   participantCount = 0,
+  timelineEventCount = 0,
+  contributionSessionCount = 0,
+  timelineEvents = [],
   isLoadingAlbum = false,
 }: HomePageProps) => {
   const username = context.username ?? 'user';
   const audioRef = useRef<HTMLAudioElement>(null);
+  const playedEventIndexesRef = useRef<Set<number>>(new Set());
+  const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const previewWav = useMemo(
-    () => (currentAlbum ? getMockWavForBase(currentAlbum.base) : '/wavs/sine.wav'),
+    () => (currentAlbum ? getAlbumBaseMusicPath(currentAlbum) : '/wavs/sine.wav'),
     [currentAlbum]
   );
+  const sortedTimelineEvents = useMemo(
+    () => [...timelineEvents].sort((first, second) => first.offsetSec - second.offsetSec),
+    [timelineEvents]
+  );
+
+  const playTimelineSample = async (trackPath: string) => {
+    try {
+      const sample = new Audio(trackPath);
+      sample.currentTime = 0;
+      await sample.play();
+    } catch (error) {
+      console.error('Timeline sample playback error:', error);
+    }
+  };
+
+  const handleBaseTimeUpdate = () => {
+    if (!audioRef.current || !currentAlbum) {
+      return;
+    }
+
+    const nextTime = audioRef.current.currentTime;
+
+    if (nextTime < currentTime) {
+      playedEventIndexesRef.current = new Set();
+    }
+
+    if (nextTime >= currentAlbum.durationSec) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setCurrentTime(currentAlbum.durationSec);
+      setIsPlaying(false);
+      playedEventIndexesRef.current = new Set();
+      return;
+    }
+
+    setCurrentTime(nextTime);
+
+    sortedTimelineEvents.forEach((event, index) => {
+      if (playedEventIndexesRef.current.has(index)) {
+        return;
+      }
+
+      if (event.offsetSec <= nextTime) {
+        playedEventIndexesRef.current.add(index);
+        void playTimelineSample(event.trackPath);
+      }
+    });
+  };
 
   const togglePlayPause = async () => {
     if (!audioRef.current) {
@@ -37,8 +93,11 @@ export const HomePage = ({
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
+        playedEventIndexesRef.current = new Set();
       } else {
         console.log('Attempting to play:', previewWav);
+        playedEventIndexesRef.current = new Set();
+        audioRef.current.currentTime = 0;
         await audioRef.current.play();
         setIsPlaying(true);
       }
@@ -89,12 +148,18 @@ export const HomePage = ({
                 <div className="border-b border-white/50 pb-1">
                   Contributions: {participantCount}/{currentAlbum.maxContributors}
                 </div>
+                <div className="border-b border-white/50 pb-1">Saved Sessions: {contributionSessionCount}</div>
+                <div className="border-b border-white/50 pb-1">Timeline Events: {timelineEventCount}</div>
               </div>
             </div>
 
             <audio 
               ref={audioRef} 
-              onEnded={() => setIsPlaying(false)}
+              onEnded={() => {
+                setIsPlaying(false);
+                playedEventIndexesRef.current = new Set();
+              }}
+              onTimeUpdate={handleBaseTimeUpdate}
               onError={(e) => console.error('Audio error:', e)}
               onLoadedData={() => console.log('Audio loaded:', previewWav)}
             >

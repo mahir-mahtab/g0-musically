@@ -1,13 +1,10 @@
-import type { AlbumData } from '../../shared/api';
+import { BASE_MUSIC_PATH_BY_BASE } from '../../shared/api';
+import type { AlbumBase, AlbumData } from '../../shared/api';
 
-const baseToWav: Record<AlbumData['base'], string> = {
-  None: '/wavs/sine.wav',
-  'Lo-fi': '/wavs/collectathon.wav',
-  'Hip-hop': '/wavs/overdrive.wav',
-  EDM: '/wavs/synth.wav',
-  Rock: '/wavs/gc.wav',
+export const getMockWavForBase = (base: AlbumBase): string => {
+  return BASE_MUSIC_PATH_BY_BASE[base] ?? BASE_MUSIC_PATH_BY_BASE.None;
 };
 
-export const getMockWavForBase = (base: AlbumData['base']): string => {
-  return baseToWav[base] ?? '/wavs/sine.wav';
+export const getAlbumBaseMusicPath = (album: AlbumData): string => {
+  return album.baseMusicPath || getMockWavForBase(album.base);
 };
