@@ -15,6 +15,7 @@ export type AlbumData = {
   vibe: 'Chill' | 'Hype' | 'Focus' | 'Sad';
   durationSec: number;
   maxContributors: number;
+  coverImage?: string;
 };
 
 export type CreatePostRequest = {

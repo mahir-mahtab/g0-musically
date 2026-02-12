@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "g0-musically",
+  "name": "test-mumtio",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -20,7 +20,9 @@
   "permissions": {
     "reddit": {
       "enable": true,
-      "asUser": ["SUBMIT_POST"]
+      "asUser": [
+        "SUBMIT_POST"
+      ]
     }
   },
   "menu": {
@@ -39,6 +41,6 @@
     "build": "vite build"
   },
   "dev": {
-    "subreddit": "g0_musically_dev"
+    "subreddit": "test_mumtio_dev"
   }
 }

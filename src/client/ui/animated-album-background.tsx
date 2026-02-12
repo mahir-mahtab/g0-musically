@@ -64,14 +64,12 @@ export const AnimatedAlbumBackground = () => {
     <div className="absolute inset-0" aria-hidden="true">
       <img
         className="absolute inset-0 w-full h-full object-cover"
-        key={frames[frameIndex]}
         src={frames[frameIndex]}
         alt=""
         draggable={false}
+        style={{ imageRendering: 'auto' }}
       />
       <div className="absolute inset-0 bg-black/40" />
-
-      {!preloaded ? <div className="absolute inset-0" /> : null}
     </div>
   );
 };

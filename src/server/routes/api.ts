@@ -32,6 +32,7 @@ const toValidatedAlbum = (album: CreatePostRequest['album']): AlbumData | undefi
   const vibe = typeof album.vibe === 'string' && isAlbumVibe(album.vibe) ? album.vibe : 'Chill';
   const durationSec = Number.isFinite(album.durationSec) ? album.durationSec : 30;
   const maxContributors = Number.isFinite(album.maxContributors) ? album.maxContributors : 5;
+  const coverImage = typeof album.coverImage === 'string' ? album.coverImage : undefined;
 
   if (!name) {
     return undefined;
@@ -43,6 +44,7 @@ const toValidatedAlbum = (album: CreatePostRequest['album']): AlbumData | undefi
     vibe,
     durationSec,
     maxContributors,
+    coverImage,
   };
 };
 
@@ -90,6 +92,17 @@ api.post('/posts', async (c) => {
     }
 
     const ugcText = body || title;
+    
+    // Extract coverImage to store separately in Redis
+    const coverImage = album?.coverImage;
+    const albumWithoutImage = album ? {
+      name: album.name,
+      base: album.base,
+      vibe: album.vibe,
+      durationSec: album.durationSec,
+      maxContributors: album.maxContributors,
+    } : undefined;
+    
     const post = await reddit.submitCustomPost({
       subredditName,
       title,
@@ -101,7 +114,7 @@ api.post('/posts', async (c) => {
       postData: {
         title,
         body,
-        ...(album && { album }),
+        ...(albumWithoutImage && { album: albumWithoutImage }),
       },
       textFallback: {
         text: ugcText,
@@ -120,6 +133,7 @@ api.post('/posts', async (c) => {
         vibe: album.vibe,
         durationSec: String(album.durationSec),
         maxContributors: String(album.maxContributors),
+        ...(coverImage && { coverImage }),
         createdAt,
         createdByUser: currentUser || 'unknown',
         participantCount: '1', // Creator is the first participant
@@ -173,6 +187,7 @@ api.get('/posts/:postId', async (c) => {
       vibe: albumVibe,
       durationSec: Number.parseInt(albumMeta.durationSec || '30', 10),
       maxContributors: Number.parseInt(albumMeta.maxContributors || '5', 10),
+      coverImage: albumMeta.coverImage || undefined,
     };
 
     const participantCount = Number.parseInt(albumMeta.participantCount || '0', 10);

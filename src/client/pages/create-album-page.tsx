@@ -18,7 +18,23 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
   const [vibe, setVibe] = useState<Vibe>('Chill');
   const [durationSec, setDurationSec] = useState(30);
   const [maxContributors, setMaxContributors] = useState(5);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('Image must be less than 5MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setUploadedImage(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const canCreate = useMemo(() => albumName.trim().length > 0, [albumName]);
 
@@ -36,11 +52,12 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
         vibe,
         durationSec,
         maxContributors,
+        ...(uploadedImage && { coverImage: uploadedImage }),
       };
 
       const payload: CreatePostRequest = {
         title: `🎵 ${albumName.trim()} - Collaborative Album`,
-        body: `**Base:** ${base}\n**Vibe:** ${vibe}\n**Duration:** ${durationSec}s\n**Max Contributors:** ${maxContributors}`,
+        body: `**Base:** ${base}\n**Vibe:** ${vibe}\n**Duration:** ${durationSec}s\n**Max Contributors xD:** ${maxContributors}`,
         album,
       };
 
@@ -84,10 +101,49 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
           &lt; Back
         </button>
 
-        <div className="w-full max-w-lg border-2 border-white/60 bg-black/80 text-white px-6 py-5 shadow-2xl">
-          <h1 className="text-lg font-pixel font-bold tracking-widest mb-4 text-center">CREATE ALBUM</h1>
+        <div className="w-full max-w-4xl border-2 border-white/60 bg-black/80 text-white shadow-2xl">
+          <h1 className="text-lg font-pixel font-bold tracking-widest py-4 text-center border-b border-white/30">CREATE ALBUM</h1>
 
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-[300px_1fr] gap-6 p-6">
+            {/* Left side - Album Cover Selector */}
+            <div className="flex flex-col gap-3">
+              <div className="aspect-square border-2 border-white/40 bg-black/60 overflow-hidden flex items-center justify-center">
+                {uploadedImage ? (
+                  <img 
+                    src={uploadedImage} 
+                    alt="Album cover"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-white/40 font-pixel text-xs text-center px-4">
+                    No image selected
+                  </div>
+                )}
+              </div>
+              
+              <label className="w-full bg-white/10 hover:bg-white/20 border-2 border-white/40 text-white font-pixel text-xs py-2 px-3 cursor-pointer text-center transition-all">
+                UPLOAD IMAGE
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+
+              {uploadedImage && (
+                <button
+                  type="button"
+                  onClick={() => setUploadedImage(null)}
+                  className="w-full bg-red-600/80 hover:bg-red-600 text-white font-pixel text-xs py-2 px-3 transition-all"
+                >
+                  REMOVE IMAGE
+                </button>
+              )}
+            </div>
+
+            {/* Right side - Form Fields */}
+            <div className="flex flex-col gap-3">
             <PixelField
               label="Album Name"
               value={albumName}
@@ -125,24 +181,25 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
             />
 
             <PixelSelect<number>
-              label="Max Contributors"
+              label="Max Contributors xD"
               value={maxContributors}
               onChange={setMaxContributors}
               options={[2, 3, 4, 5, 6, 7, 8]}
               formatValue={(v) => `MAX CONTRIBUTORS: ${v}`}
               hideLabel
             />
-          </div>
 
-          <div className="flex justify-center mt-6">
-            <button
-              className="w-full bg-[#3d7edc] hover:bg-[#4a8df4] active:bg-[#2d62b1] disabled:opacity-50 text-white font-pixel font-bold py-3 border-b-4 border-black/40 transition-all uppercase tracking-widest text-sm"
-              type="button"
-              onClick={create}
-              disabled={!canCreate || isLoading}
-            >
-              {isLoading ? 'CREATING...' : 'CREATE ALBUM'}
-            </button>
+            <div className="flex justify-center mt-3">
+              <button
+                className="w-full bg-[#3d7edc] hover:bg-[#4a8df4] active:bg-[#2d62b1] disabled:opacity-50 text-white font-pixel font-bold py-3 border-b-4 border-black/40 transition-all uppercase tracking-widest text-sm"
+                type="button"
+                onClick={create}
+                disabled={!canCreate || isLoading}
+              >
+                {isLoading ? 'CREATING...' : 'CREATE ALBUM'}
+              </button>
+            </div>
+            </div>
           </div>
         </div>
       </div>
