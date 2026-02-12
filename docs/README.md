@@ -48,3 +48,7 @@ This folder documents the **non-obvious constraints** and **project-specific con
   - Don’t use `window.location` (use `navigateTo`).
 
 See [DO_NOT_DO.md](DO_NOT_DO.md) for the full checklist.
+
+## Feature implementation docs
+
+- [Audio collaboration implementation](AUDIO_COLLAB_IMPLEMENTATION.md)

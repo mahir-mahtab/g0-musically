@@ -1,9 +1,13 @@
 import { showToast, navigateTo } from '@devvit/web/client';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ChangeEvent } from 'react';
 import { AnimatedAlbumBackground } from '../ui/animated-album-background';
 import { PixelField } from '../ui/pixel-field';
 import { PixelSelect } from '../ui/pixel-select';
-import type { AlbumData, CreatePostRequest } from '../../shared/api';
+import {
+  albumBaseTrackPathByBase,
+  type AlbumData,
+  type CreatePostRequest,
+} from '../../shared/api';
 
 type CreateAlbumPageProps = {
   onBack: () => void;
@@ -16,12 +20,11 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
   const [albumName, setAlbumName] = useState('');
   const [base, setBase] = useState<Base>('None');
   const [vibe, setVibe] = useState<Vibe>('Chill');
-  const [durationSec, setDurationSec] = useState(30);
   const [maxContributors, setMaxContributors] = useState(5);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -49,15 +52,15 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
       const album: AlbumData = {
         name: albumName.trim(),
         base,
+        baseTrackPath: albumBaseTrackPathByBase[base],
         vibe,
-        durationSec,
         maxContributors,
         ...(uploadedImage && { coverImage: uploadedImage }),
       };
 
       const payload: CreatePostRequest = {
         title: `🎵 ${albumName.trim()} - Collaborative Album`,
-        body: `**Base:** ${base}\n**Vibe:** ${vibe}\n**Duration:** ${durationSec}s\n**Max Contributors xD:** ${maxContributors}`,
+        body: `**Base:** ${base}\n**Vibe:** ${vibe}\n**Max Contributors xD:** ${maxContributors}`,
         album,
       };
 
@@ -168,15 +171,6 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
               onChange={setVibe}
               options={['Chill', 'Hype', 'Focus', 'Sad']}
               formatValue={(v) => `VIBE: ${v}`}
-              hideLabel
-            />
-
-            <PixelSelect<number>
-              label="Duration"
-              value={durationSec}
-              onChange={setDurationSec}
-              options={[15, 30, 45, 60]}
-              formatValue={(v) => `DURATION: ${v} SEC`}
               hideLabel
             />
 

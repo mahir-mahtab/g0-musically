@@ -6,7 +6,7 @@ import { context } from '@devvit/web/client';
 import { HomePage } from './pages/home-page';
 import { CreateAlbumPage } from './pages/create-album-page';
 import { ContributePage } from './pages/contribute-page';
-import type { AlbumData, GetPostResponse } from '../shared/api';
+import type { AlbumData, ContributionEntry, GetPostResponse } from '../shared/api';
 
 type Route = 'home' | 'create-album' | 'contribute';
 
@@ -14,6 +14,7 @@ export const App = () => {
   const [route, setRoute] = useState<Route>('home');
   const [currentAlbum, setCurrentAlbum] = useState<AlbumData | null>(null);
   const [participantCount, setParticipantCount] = useState(0);
+  const [contributions, setContributions] = useState<ContributionEntry[]>([]);
   const [isLoadingAlbum, setIsLoadingAlbum] = useState(() => !!context.postId);
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export const App = () => {
           if (data.status === 'ok' && data.album) {
             setCurrentAlbum(data.album);
             setParticipantCount(data.participantCount);
+            setContributions(data.contributions);
           }
         })
         .catch((error) => {
@@ -46,6 +48,12 @@ export const App = () => {
       <ContributePage
         album={currentAlbum}
         participantCount={participantCount}
+        contributions={contributions}
+        postId={context.postId ?? ''}
+        onContributionSaved={(nextContributions: ContributionEntry[], nextParticipantCount: number) => {
+          setContributions(nextContributions);
+          setParticipantCount(nextParticipantCount);
+        }}
         onBack={() => setRoute('home')}
       />
     );
@@ -57,6 +65,7 @@ export const App = () => {
       onContribute={() => setRoute('contribute')}
       currentAlbum={currentAlbum}
       participantCount={participantCount}
+      contributions={contributions}
       isLoadingAlbum={isLoadingAlbum}
     />
   );

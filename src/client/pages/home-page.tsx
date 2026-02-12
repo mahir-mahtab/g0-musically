@@ -1,14 +1,16 @@
 import { context } from '@devvit/web/client';
-import { useMemo, useRef, useState } from 'react';
-import type { AlbumData } from '../../shared/api';
-import { getMockWavForBase } from '../ui/mock-audio';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { AlbumData, ContributionEntry } from '../../shared/api';
 import { AnimatedAlbumBackground } from '../ui/animated-album-background';
+
+const BASE_VOLUME = 0.2;
 
 type HomePageProps = {
   onCreateAlbum: () => void;
   onContribute: () => void;
   currentAlbum?: AlbumData | null;
   participantCount?: number;
+  contributions?: ContributionEntry[];
   isLoadingAlbum?: boolean;
 };
 
@@ -17,30 +19,80 @@ export const HomePage = ({
   onContribute,
   currentAlbum,
   participantCount = 0,
+  contributions = [],
   isLoadingAlbum = false,
 }: HomePageProps) => {
   const username = context.username ?? 'user';
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const baseAudioRef = useRef<HTMLAudioElement>(null);
+  const contributionAudioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const previewWav = useMemo(
-    () => (currentAlbum ? getMockWavForBase(currentAlbum.base) : '/wavs/sine.wav'),
+  const [currentContributionIndex, setCurrentContributionIndex] = useState(0);
+  const baseTrackPath = useMemo(
+    () => currentAlbum?.baseTrackPath ?? '/wavs/sine.wav',
     [currentAlbum]
   );
+  const contributionTrackPath = contributions[currentContributionIndex]?.assetPath;
+
+  const stopPlayback = () => {
+    if (baseAudioRef.current) {
+      baseAudioRef.current.pause();
+      baseAudioRef.current.currentTime = 0;
+    }
+    if (contributionAudioRef.current) {
+      contributionAudioRef.current.pause();
+      contributionAudioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+    setCurrentContributionIndex(0);
+  };
+
+  useEffect(() => {
+    if (!isPlaying || !contributionAudioRef.current || !contributionTrackPath) {
+      return;
+    }
+
+    contributionAudioRef.current.currentTime = 0;
+    contributionAudioRef.current.play().catch((error) => {
+      console.error('Error playing contribution track:', error);
+    });
+  }, [isPlaying, contributionTrackPath]);
 
   const togglePlayPause = async () => {
-    if (!audioRef.current) return;
+    if (!baseAudioRef.current) {
+      return;
+    }
 
     try {
       if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
+        stopPlayback();
       } else {
-        await audioRef.current.play();
+        baseAudioRef.current.volume = BASE_VOLUME;
+        baseAudioRef.current.loop = contributions.length > 0;
+        baseAudioRef.current.currentTime = 0;
+        await baseAudioRef.current.play();
+        if (contributionAudioRef.current) {
+          contributionAudioRef.current.currentTime = 0;
+        }
+        setCurrentContributionIndex(0);
         setIsPlaying(true);
       }
     } catch (error) {
       console.error('Error playing audio:', error);
     }
+  };
+
+  const handleContributionEnded = () => {
+    if (!contributions.length) {
+      return;
+    }
+
+    setCurrentContributionIndex((previousIndex) => {
+      if (previousIndex >= contributions.length - 1) {
+        stopPlayback();
+        return 0;
+      }
+      return previousIndex + 1;
+    });
   };
 
   if (isLoadingAlbum) {
@@ -87,8 +139,12 @@ export const HomePage = ({
               </div>
             </div>
 
-            <audio ref={audioRef} onEnded={() => setIsPlaying(false)}>
-              <source src={previewWav} type="audio/wav" />
+            <audio ref={baseAudioRef} onEnded={() => setIsPlaying(false)}>
+              <source src={baseTrackPath} type="audio/wav" />
+            </audio>
+
+            <audio ref={contributionAudioRef} onEnded={handleContributionEnded}>
+              {contributionTrackPath ? <source src={contributionTrackPath} type="audio/wav" /> : null}
             </audio>
 
             <div className="mt-4 flex items-center justify-between gap-3">
@@ -101,7 +157,7 @@ export const HomePage = ({
                 >
                   {isPlaying ? '❚❚' : '▶'}
                 </button>
-                <span className="text-xs font-pixel opacity-80">{currentAlbum.durationSec}s</span>
+                <span className="text-xs font-pixel opacity-80">Tracks: {contributions.length}</span>
               </div>
 
               <button
@@ -134,7 +190,7 @@ export const HomePage = ({
           onClick={onCreateAlbum}
           type="button"
         >
-          Create Album
+          CREATE ALBUM
         </button>
       </div>
     </div>

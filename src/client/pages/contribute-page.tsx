@@ -1,16 +1,28 @@
 import { showToast } from '@devvit/web/client';
-import { useMemo, useRef, useState } from 'react';
-import type { AlbumData } from '../../shared/api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  contributionTrackCatalog,
+  type AlbumData,
+  type ContributionEntry,
+  type ContributionTrack,
+  type ContributionTrackId,
+  type CreateContributionResponse,
+} from '../../shared/api';
 import { AnimatedAlbumBackground } from '../ui/animated-album-background';
-import { getMockWavForBase } from '../ui/mock-audio';
+
+const BASE_VOLUME = 0.2;
 
 type ContributePageProps = {
   album: AlbumData;
   participantCount: number;
+  contributions: ContributionEntry[];
+  postId: string;
+  onContributionSaved: (contributions: ContributionEntry[], participantCount: number) => void;
   onBack: () => void;
 };
 
 type InstrumentVariation = {
+  id: ContributionTrackId;
   name: string;
   file: string;
 };
@@ -21,49 +33,81 @@ type Instrument = {
   variations?: InstrumentVariation[];
 };
 
+const toVariation = (track: ContributionTrack): InstrumentVariation => {
+  return {
+    id: track.id,
+    name: track.name,
+    file: track.filePath,
+  };
+};
+
 const instruments: Instrument[] = [
   {
     id: 'drums',
     name: 'Drums',
-    variations: [
-      { name: 'Crushed Clap', file: '/drums/crushed-clap.wav' },
-      { name: 'Kick 808 Boom', file: '/drums/kick-808-boom.wav' },
-      { name: 'Mid Tom', file: '/drums/mid-tom.wav' },
-      { name: 'Acoustic Snare', file: '/drums/snd_acoustic-snare.wav' },
-      { name: 'Clap Tight', file: '/drums/snd_clap_tight.wav' },
-      { name: 'Kick Deep', file: '/drums/snd_kick_deep.wav' },
-      { name: 'Kick Punch', file: '/drums/snd_kick_punch.wav' },
-      { name: 'Ride', file: '/drums/snd_ride.wav' },
-      { name: 'Shaker Loop', file: '/drums/snd_shaker_loop_thin.wav' },
-      { name: 'Soft Kick', file: '/drums/snd_soft-kick.wav' },
-      { name: 'Tom Low', file: '/drums/snd_tom_low.wav' },
-    ],
+    variations: contributionTrackCatalog
+      .filter((track) => track.instrumentId === 'drums')
+      .map((track) => toVariation(track)),
   },
   { id: 'piano', name: 'Piano' },
   { id: 'bass', name: 'Bass' },
   { id: 'guitar', name: 'Guitar' },
-  { id: 'vinyl-fx', name: 'Vinyl FX' },
-  { id: 'synth', name: 'Synth' },
+  {
+    id: 'vinyl-fx',
+    name: 'Vinyl FX',
+    variations: contributionTrackCatalog
+      .filter((track) => track.instrumentId === 'vinyl-fx')
+      .map((track) => toVariation(track)),
+  },
+  {
+    id: 'synth',
+    name: 'Synth',
+    variations: contributionTrackCatalog
+      .filter((track) => track.instrumentId === 'synth')
+      .map((track) => toVariation(track)),
+  },
   { id: 'pad', name: 'Pad' },
   { id: 'percussion', name: 'Percussion' },
 ];
 
-export const ContributePage = ({ album, participantCount: _participantCount, onBack }: ContributePageProps) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const previewAudioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+export const ContributePage = ({
+  album,
+  participantCount,
+  contributions,
+  postId,
+  onContributionSaved,
+  onBack,
+}: ContributePageProps) => {
+  const basePreviewAudioRef = useRef<HTMLAudioElement>(null);
+  const modalBaseAudioRef = useRef<HTMLAudioElement>(null);
+  const modalTrackAudioRef = useRef<HTMLAudioElement>(null);
+
+  const [isBasePreviewPlaying, setIsBasePreviewPlaying] = useState(false);
+  const [basePreviewCurrentTime, setBasePreviewCurrentTime] = useState(0);
+  const [basePreviewDuration, setBasePreviewDuration] = useState(0);
   const [selectedInstrument, setSelectedInstrument] = useState<Instrument | null>(null);
   const [selectedVariation, setSelectedVariation] = useState<InstrumentVariation | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [previewTime, setPreviewTime] = useState(0);
-  const [previewDuration, setPreviewDuration] = useState(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
-  const [isPreviewLooping, setIsPreviewLooping] = useState(false);
+  const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
+  const [previewDuration, setPreviewDuration] = useState(0);
+  const [previewQueueIndex, setPreviewQueueIndex] = useState(0);
+  const [isSubmittingContribution, setIsSubmittingContribution] = useState(false);
 
-  const previewWav = useMemo(() => getMockWavForBase(album.base), [album.base]);
+  const baseTrackPath = useMemo(() => album.baseTrackPath, [album.baseTrackPath]);
+  const previewQueue = useMemo(() => {
+    const queued = contributions
+      .slice()
+      .sort((left, right) => left.orderIndex - right.orderIndex)
+      .map((contribution) => contribution.assetPath);
+
+    if (selectedVariation) {
+      queued.push(selectedVariation.file);
+    }
+
+    return queued;
+  }, [contributions, selectedVariation]);
+  const previewTrackPath = previewQueue[previewQueueIndex];
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -71,16 +115,29 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const togglePreview = async () => {
-    if (!audioRef.current) return;
+  const stopBasePreview = () => {
+    if (!basePreviewAudioRef.current) {
+      return;
+    }
+    basePreviewAudioRef.current.pause();
+    basePreviewAudioRef.current.currentTime = 0;
+    setIsBasePreviewPlaying(false);
+  };
+
+  const toggleBasePreview = async () => {
+    if (!basePreviewAudioRef.current) {
+      return;
+    }
 
     try {
-      if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
+      if (isBasePreviewPlaying) {
+        stopBasePreview();
       } else {
-        await audioRef.current.play();
-        setIsPlaying(true);
+        basePreviewAudioRef.current.volume = BASE_VOLUME;
+        basePreviewAudioRef.current.loop = false;
+        basePreviewAudioRef.current.currentTime = 0;
+        await basePreviewAudioRef.current.play();
+        setIsBasePreviewPlaying(true);
       }
     } catch (error) {
       console.error('Audio preview error:', error);
@@ -88,111 +145,149 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
     }
   };
 
-  const toggleLoop = () => {
-    if (audioRef.current) {
-      audioRef.current.loop = !isLooping;
-      setIsLooping(!isLooping);
+  const handleBaseProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!basePreviewAudioRef.current || basePreviewDuration <= 0) {
+      return;
     }
-  };
-
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration);
-    }
-  };
-
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!audioRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
-    audioRef.current.currentTime = percentage * duration;
+    basePreviewAudioRef.current.currentTime = percentage * basePreviewDuration;
   };
 
-  const startRecording = () => {
-    // Backend needed: create session/track and persist contribution metadata in Redis.
+  const stopWholeTrackPreview = (resetQueue = false) => {
+    if (modalBaseAudioRef.current) {
+      modalBaseAudioRef.current.pause();
+      modalBaseAudioRef.current.currentTime = 0;
+    }
+    if (modalTrackAudioRef.current) {
+      modalTrackAudioRef.current.pause();
+      modalTrackAudioRef.current.currentTime = 0;
+    }
+    setIsPreviewPlaying(false);
+    setPreviewCurrentTime(0);
+    setPreviewDuration(0);
+    if (resetQueue) {
+      setPreviewQueueIndex(0);
+    }
+  };
+
+  const openPreview = () => {
     if (!selectedVariation) {
       showToast('Please select a variation first');
       return;
     }
-    showToast(`Recording ${selectedVariation.name}...`);
-    
-    // Simulate recording completion after 2 seconds
-    setTimeout(() => {
-      showToast('Recording complete!');
-      setShowPreviewModal(true);
-    }, 2000);
+    setPreviewQueueIndex(0);
+    setShowPreviewModal(true);
   };
 
   const togglePreviewPlayback = async () => {
-    if (!previewAudioRef.current) return;
+    if (!modalBaseAudioRef.current) {
+      return;
+    }
 
     try {
       if (isPreviewPlaying) {
-        previewAudioRef.current.pause();
-        setIsPreviewPlaying(false);
-      } else {
-        await previewAudioRef.current.play();
-        setIsPreviewPlaying(true);
+        stopWholeTrackPreview();
+        return;
       }
+
+      modalBaseAudioRef.current.volume = BASE_VOLUME;
+      modalBaseAudioRef.current.loop = previewQueue.length > 0;
+      modalBaseAudioRef.current.currentTime = 0;
+      await modalBaseAudioRef.current.play();
+
+      setPreviewQueueIndex(0);
+      if (modalTrackAudioRef.current) {
+        modalTrackAudioRef.current.currentTime = 0;
+      }
+      setIsPreviewPlaying(true);
     } catch (error) {
       console.error('Preview playback error:', error);
-      showToast('Could not play preview');
+      showToast('Could not play full track preview');
     }
   };
 
-  const togglePreviewLoop = () => {
-    if (previewAudioRef.current) {
-      previewAudioRef.current.loop = !isPreviewLooping;
-      setIsPreviewLooping(!isPreviewLooping);
+  useEffect(() => {
+    if (!isPreviewPlaying || !modalTrackAudioRef.current || !previewTrackPath) {
+      return;
     }
-  };
 
-  const handlePreviewTimeUpdate = () => {
-    if (previewAudioRef.current) {
-      setPreviewTime(previewAudioRef.current.currentTime);
-    }
-  };
+    modalTrackAudioRef.current.currentTime = 0;
+    modalTrackAudioRef.current.play().catch((error) => {
+      console.error('Preview track playback error:', error);
+    });
+  }, [isPreviewPlaying, previewTrackPath]);
 
-  const handlePreviewLoadedMetadata = () => {
-    if (previewAudioRef.current) {
-      setPreviewDuration(previewAudioRef.current.duration);
-    }
+  const handlePreviewTrackEnded = () => {
+    setPreviewQueueIndex((previousIndex) => {
+      if (previousIndex >= previewQueue.length - 1) {
+        stopWholeTrackPreview(true);
+        return 0;
+      }
+
+      return previousIndex + 1;
+    });
   };
 
   const handlePreviewProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!previewAudioRef.current) return;
+    if (!modalTrackAudioRef.current || previewDuration <= 0) {
+      return;
+    }
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
-    previewAudioRef.current.currentTime = percentage * previewDuration;
+    modalTrackAudioRef.current.currentTime = percentage * previewDuration;
   };
 
-  const confirmContribution = () => {
-    // Backend needed: finalize contribution and update Redis
-    showToast('Contribution confirmed! 🎉');
-    setShowPreviewModal(false);
-    setIsPreviewPlaying(false);
-    if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.currentTime = 0;
+  const confirmContribution = async () => {
+    if (!selectedVariation) {
+      showToast('Please select a variation first');
+      return;
+    }
+
+    if (!postId) {
+      showToast('Post id is missing for contribution');
+      return;
+    }
+
+    setIsSubmittingContribution(true);
+    try {
+      const response = await fetch(`/api/posts/${postId}/contributions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId: selectedVariation.id }),
+      });
+
+      const data: CreateContributionResponse = await response.json();
+      if (!response.ok || data.status !== 'ok') {
+        const errorMessage = data.status === 'error' ? data.message : 'Failed to save contribution';
+        throw new Error(errorMessage);
+      }
+
+      onContributionSaved(data.contributions, data.participantCount);
+      showToast('Instrument added! 🎉');
+      stopWholeTrackPreview(true);
+      setShowPreviewModal(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save contribution';
+      showToast(`Error: ${message}`);
+    } finally {
+      setIsSubmittingContribution(false);
     }
   };
 
-  const cancelPreview = () => {
+  const closePreview = () => {
+    stopWholeTrackPreview(true);
     setShowPreviewModal(false);
-    setIsPreviewPlaying(false);
-    if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.currentTime = 0;
-    }
   };
+
+  useEffect(() => {
+    return () => {
+      stopBasePreview();
+      stopWholeTrackPreview(true);
+    };
+  }, []);
 
   const handleInstrumentClick = (instrument: Instrument) => {
     setSelectedInstrument(instrument);
@@ -214,12 +309,11 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
 
         <div className="w-full max-w-7xl mx-auto border-2 border-cyan-300/80 bg-black/80 text-white p-3 sm:p-4">
           <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_88px] gap-3">
-            {/* Left Section - Album & Controls */}
             <section className="border border-cyan-300/80 p-3 flex flex-col gap-3 lg:order-1">
               <div className="aspect-square border border-cyan-300/80 flex items-center justify-center bg-black/40 overflow-hidden max-w-sm mx-auto lg:max-w-none">
                 {album.coverImage ? (
-                  <img 
-                    src={album.coverImage} 
+                  <img
+                    src={album.coverImage}
                     alt={album.name}
                     className="w-full h-full object-cover"
                   />
@@ -230,78 +324,74 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
                 )}
               </div>
 
-              <div className="text-sm font-pixel text-white/90 text-center">
-                {album.name}
+              <div className="text-sm font-pixel text-white/90 text-center">{album.name}</div>
+              <div className="text-xs font-pixel text-white/70 text-center border border-cyan-300/30 py-1">
+                Contributions: {participantCount}/{album.maxContributors} • Queue: {contributions.length}
               </div>
 
-              <audio 
-                ref={audioRef} 
-                onEnded={() => setIsPlaying(false)}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
+              <audio
+                ref={basePreviewAudioRef}
+                onEnded={() => setIsBasePreviewPlaying(false)}
+                onTimeUpdate={() => {
+                  if (basePreviewAudioRef.current) {
+                    setBasePreviewCurrentTime(basePreviewAudioRef.current.currentTime);
+                  }
+                }}
+                onLoadedMetadata={() => {
+                  if (basePreviewAudioRef.current) {
+                    setBasePreviewDuration(basePreviewAudioRef.current.duration);
+                  }
+                }}
               >
-                <source src={previewWav} type="audio/wav" />
+                <source src={baseTrackPath} type="audio/wav" />
               </audio>
 
-              {/* Progress Bar */}
-              <div 
+              <div
                 className="border border-cyan-300/80 h-4 bg-black/40 cursor-pointer relative overflow-hidden"
-                onClick={handleProgressClick}
+                onClick={handleBaseProgressClick}
               >
-                <div 
+                <div
                   className="absolute inset-y-0 left-0 bg-cyan-300/60"
-                  style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                  style={{ width: `${basePreviewDuration > 0 ? (basePreviewCurrentTime / basePreviewDuration) * 100 : 0}%` }}
                 />
               </div>
 
-              {/* Time Display */}
               <div className="text-xs font-pixel text-white/80 text-center">
-                {formatTime(currentTime)} / {formatTime(duration)}
+                {formatTime(basePreviewCurrentTime)} / {formatTime(basePreviewDuration)}
               </div>
 
               <div className="flex items-center gap-2 justify-center lg:justify-start">
                 <button
                   className="h-10 w-10 rounded-full border border-cyan-300/80 text-white font-pixel hover:bg-cyan-300/20 flex items-center justify-center"
                   type="button"
-                  onClick={togglePreview}
+                  onClick={toggleBasePreview}
                 >
-                  {isPlaying ? '❚❚' : '▶'}
+                  {isBasePreviewPlaying ? '❚❚' : '▶'}
                 </button>
-                <button
-                  className={`h-10 w-10 border border-cyan-300/80 text-white font-pixel hover:bg-cyan-300/20 flex items-center justify-center transition-colors ${
-                    isLooping ? 'bg-cyan-300/30' : ''
-                  }`}
-                  type="button"
-                  onClick={toggleLoop}
-                  aria-label="Toggle loop"
-                  title={isLooping ? 'Loop enabled' : 'Loop disabled'}
-                >
-                  🔁
-                </button>
+                <span className="text-xs font-pixel text-white/70">Base (low volume)</span>
               </div>
 
               <button
-                className="border border-cyan-300/80 px-4 py-2 text-center font-pixel text-base hover:bg-cyan-300/10 active:bg-cyan-300/20"
+                className="border border-cyan-300/80 px-4 py-2 text-center font-pixel text-base uppercase tracking-wide hover:bg-cyan-300/10 active:bg-cyan-300/20"
                 type="button"
-                onClick={startRecording}
+                onClick={openPreview}
               >
-                Start Rec
+                ADD INSTRUMENT
               </button>
             </section>
 
-            {/* Middle Section - Variations / Instructions */}
             <section className="border border-cyan-300/80 p-4 flex flex-col gap-3 lg:order-2">
-              <div className="text-xl font-pixel mb-2">Select an instrument</div>
+              <div className="text-xl font-pixel mb-2 uppercase tracking-wide">SELECT AN INSTRUMENT</div>
 
               {selectedInstrument?.variations && selectedInstrument.variations.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                   {selectedInstrument.variations.map((variation) => (
                     <button
-                      key={variation.file}
+                      key={variation.id}
                       type="button"
                       onClick={() => setSelectedVariation(variation)}
                       className={`border border-cyan-300/80 px-3 py-2 text-xs font-pixel hover:bg-cyan-300/10 active:bg-cyan-300/20 transition-colors ${
-                        selectedVariation?.file === variation.file ? 'bg-cyan-300/20' : ''
+                        selectedVariation?.id === variation.id ? 'bg-cyan-300/20' : ''
                       }`}
                     >
                       {variation.name}
@@ -319,14 +409,13 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
               )}
             </section>
 
-            {/* Right Section - Instruments (icon rail) */}
             <section className="border border-cyan-300/80 p-2 flex lg:flex-col flex-row gap-2 overflow-x-auto lg:overflow-x-visible lg:order-3">
               {instruments.map((instrument) => (
                 <button
                   key={instrument.id}
                   type="button"
                   onClick={() => handleInstrumentClick(instrument)}
-                  className={`flex-shrink-0 w-14 h-14 lg:w-full border border-cyan-300/80 hover:bg-cyan-300/10 transition-colors flex items-center justify-center ${
+                  className={`shrink-0 w-14 h-14 lg:w-full border border-cyan-300/80 hover:bg-cyan-300/10 transition-colors flex items-center justify-center ${
                     selectedInstrument?.id === instrument.id ? 'bg-cyan-300/20' : ''
                   }`}
                   title={instrument.name}
@@ -340,96 +429,110 @@ export const ContributePage = ({ album, participantCount: _participantCount, onB
         </div>
       </div>
 
-      {/* Preview Modal */}
       {showPreviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md border-2 border-cyan-300/80 bg-gradient-to-br from-black via-gray-900 to-black p-6 shadow-2xl">
-            <h2 className="text-xl font-pixel text-center text-cyan-300 mb-6 tracking-wider">
-              PREVIEW YOUR CONTRIBUTION
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl mx-auto my-2 sm:my-8 border-2 border-cyan-300/80 bg-linear-to-br from-black via-gray-900 to-black p-4 sm:p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <h2 className="text-lg sm:text-xl font-pixel text-center text-cyan-300 mb-4 tracking-wider">
+              FULL TRACK PREVIEW
             </h2>
 
-            {/* Album Cover */}
-            <div className="aspect-square border-2 border-cyan-300/60 bg-black/60 overflow-hidden mb-4 shadow-lg">
-              {album.coverImage ? (
-                <img 
-                  src={album.coverImage} 
-                  alt={album.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-white/60 font-pixel text-sm text-center px-4">
-                  {album.name}
+            <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4 items-start">
+              <div className="aspect-video md:aspect-square border-2 border-cyan-300/60 bg-black/60 overflow-hidden shadow-lg">
+                {album.coverImage ? (
+                  <img
+                    src={album.coverImage}
+                    alt={album.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-white/60 font-pixel text-sm text-center px-4">
+                    {album.name}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="text-center md:text-left font-pixel text-white/90">{album.name}</div>
+                <div className="text-xs font-pixel text-cyan-300/80">
+                  Base: low-volume loop while queue plays
                 </div>
-              )}
+                <div className="text-xs font-pixel text-cyan-300/80">
+                  Queue: {previewQueue.length} track(s) • Current: {previewQueue.length ? previewQueueIndex + 1 : 0}/{previewQueue.length}
+                </div>
+                <div className="text-xs font-pixel text-cyan-300/80">
+                  Pending add: {selectedVariation?.name ?? 'None'}
+                </div>
+              </div>
             </div>
 
-            {/* Album Name */}
-            <div className="text-center font-pixel text-white/90 mb-4">
-              {album.name}
-            </div>
-
-            {/* Audio Element */}
-            <audio 
-              ref={previewAudioRef}
-              onEnded={() => setIsPreviewPlaying(false)}
-              onTimeUpdate={handlePreviewTimeUpdate}
-              onLoadedMetadata={handlePreviewLoadedMetadata}
+            <audio
+              ref={modalBaseAudioRef}
+              onEnded={() => {
+                if (!previewQueue.length) {
+                  setIsPreviewPlaying(false);
+                }
+              }}
             >
-              <source src={previewWav} type="audio/wav" />
+              <source src={baseTrackPath} type="audio/wav" />
             </audio>
 
-            {/* Progress Bar */}
-            <div 
-              className="border border-cyan-300/80 h-3 bg-black/60 cursor-pointer relative overflow-hidden mb-2 shadow-inner"
+            <audio
+              ref={modalTrackAudioRef}
+              onEnded={handlePreviewTrackEnded}
+              onTimeUpdate={() => {
+                if (modalTrackAudioRef.current) {
+                  setPreviewCurrentTime(modalTrackAudioRef.current.currentTime);
+                }
+              }}
+              onLoadedMetadata={() => {
+                if (modalTrackAudioRef.current) {
+                  setPreviewDuration(modalTrackAudioRef.current.duration);
+                }
+              }}
+            >
+              {previewTrackPath ? <source src={previewTrackPath} type="audio/wav" /> : null}
+            </audio>
+
+            <div
+              className="border border-cyan-300/80 h-3 bg-black/60 cursor-pointer relative overflow-hidden mt-4 mb-2 shadow-inner"
               onClick={handlePreviewProgressClick}
             >
-              <div 
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-400 to-cyan-600 transition-all"
-                style={{ width: `${previewDuration > 0 ? (previewTime / previewDuration) * 100 : 0}%` }}
+              <div
+                className="absolute inset-y-0 left-0 bg-linear-to-r from-cyan-400 to-cyan-600 transition-all"
+                style={{ width: `${previewDuration > 0 ? (previewCurrentTime / previewDuration) * 100 : 0}%` }}
               />
             </div>
 
-            {/* Time Display */}
             <div className="text-xs font-pixel text-cyan-300/80 text-center mb-4">
-              {formatTime(previewTime)} / {formatTime(previewDuration)}
+              {formatTime(previewCurrentTime)} / {formatTime(previewDuration)}
             </div>
 
-            {/* Playback Controls */}
-            <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="flex items-center justify-center gap-3 mb-5">
               <button
-                className="h-12 w-12 rounded-full border-2 border-cyan-300/80 text-white font-pixel hover:bg-cyan-300/20 flex items-center justify-center text-lg transition-all hover:scale-105"
+                className="h-11 w-11 rounded-full border-2 border-cyan-300/80 text-white font-pixel hover:bg-cyan-300/20 flex items-center justify-center text-lg transition-all"
                 type="button"
                 onClick={togglePreviewPlayback}
               >
                 {isPreviewPlaying ? '❚❚' : '▶'}
               </button>
-              <button
-                className={`h-12 w-12 border-2 border-cyan-300/80 text-white font-pixel hover:bg-cyan-300/20 flex items-center justify-center transition-all hover:scale-105 ${
-                  isPreviewLooping ? 'bg-cyan-300/30 border-cyan-300' : ''
-                }`}
-                type="button"
-                onClick={togglePreviewLoop}
-                title={isPreviewLooping ? 'Loop enabled' : 'Loop disabled'}
-              >
-                🔁
-              </button>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 className="flex-1 border-2 border-white/40 text-white font-pixel py-3 hover:bg-white/10 transition-all"
                 type="button"
-                onClick={cancelPreview}
+                onClick={closePreview}
+                disabled={isSubmittingContribution}
               >
                 CANCEL
               </button>
               <button
-                className="flex-1 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white font-pixel font-bold py-3 border-2 border-cyan-400/50 transition-all shadow-lg hover:shadow-cyan-500/50"
+                className="flex-1 bg-linear-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white font-pixel font-bold py-3 border-2 border-cyan-400/50 transition-all shadow-lg hover:shadow-cyan-500/50 disabled:opacity-50"
                 type="button"
                 onClick={confirmContribution}
+                disabled={isSubmittingContribution}
               >
-                CONFIRM
+                {isSubmittingContribution ? 'SAVING...' : 'CONFIRM ADD'}
               </button>
             </div>
           </div>
