@@ -1,9 +1,11 @@
 import { context } from '@devvit/web/client';
-import { useState, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { AlbumData } from '../../shared/api';
+import { getMockWavForBase } from '../ui/mock-audio';
 
 type HomePageProps = {
   onCreateAlbum: () => void;
+  onContribute: () => void;
   currentAlbum?: AlbumData | null;
   participantCount?: number;
   isLoadingAlbum?: boolean;
@@ -11,6 +13,7 @@ type HomePageProps = {
 
 export const HomePage = ({
   onCreateAlbum,
+  onContribute,
   currentAlbum,
   participantCount = 0,
   isLoadingAlbum = false,
@@ -18,6 +21,10 @@ export const HomePage = ({
   const username = context.username ?? 'user';
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const previewWav = useMemo(
+    () => (currentAlbum ? getMockWavForBase(currentAlbum.base) : '/wavs/sine.wav'),
+    [currentAlbum]
+  );
 
   const togglePlayPause = async () => {
     if (!audioRef.current) return;
@@ -63,7 +70,7 @@ export const HomePage = ({
           </div>
 
           <audio ref={audioRef} onEnded={() => setIsPlaying(false)}>
-            <source src="/wavs/sine.wav" type="audio/wav" />
+            <source src={previewWav} type="audio/wav" />
             Your browser does not support the audio element.
           </audio>
 
@@ -83,6 +90,7 @@ export const HomePage = ({
             <button
               className="bg-[#d93900] text-white font-pixel font-bold py-2 px-5 rounded-md transition-colors hover:bg-[#c1300a]"
               type="button"
+              onClick={onContribute}
             >
               CONTRIBUTE
             </button>

@@ -5,9 +5,10 @@ import { createRoot } from 'react-dom/client';
 import { context } from '@devvit/web/client';
 import { HomePage } from './pages/home-page';
 import { CreateAlbumPage } from './pages/create-album-page';
+import { ContributePage } from './pages/contribute-page';
 import type { AlbumData, GetPostResponse } from '../shared/api';
 
-type Route = 'home' | 'create-album';
+type Route = 'home' | 'create-album' | 'contribute';
 
 export const App = () => {
   const [route, setRoute] = useState<Route>('home');
@@ -40,9 +41,20 @@ export const App = () => {
     return <CreateAlbumPage onBack={() => setRoute('home')} />;
   }
 
+  if (route === 'contribute' && currentAlbum) {
+    return (
+      <ContributePage
+        album={currentAlbum}
+        participantCount={participantCount}
+        onBack={() => setRoute('home')}
+      />
+    );
+  }
+
   return (
     <HomePage
       onCreateAlbum={() => setRoute('create-album')}
+      onContribute={() => setRoute('contribute')}
       currentAlbum={currentAlbum}
       participantCount={participantCount}
       isLoadingAlbum={isLoadingAlbum}
