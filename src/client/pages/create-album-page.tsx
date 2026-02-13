@@ -13,7 +13,7 @@ type CreateAlbumPageProps = {
 
 export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
   const [albumName, setAlbumName] = useState('');
-  const [base, setBase] = useState<AlbumBase>('None');
+  const [base, setBase] = useState<AlbumBase>('Lo-fi');
   const [vibe, setVibe] = useState<AlbumVibe>('Chill');
   const [durationSec, setDurationSec] = useState(30);
   const [maxContributors, setMaxContributors] = useState(5);
@@ -191,7 +191,7 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
               label="Base"
               value={base}
               onChange={setBase}
-              options={['None', 'Lo-fi', 'Hip-hop', 'EDM', 'Rock', 'Custom']}
+              options={['Lo-fi', 'Hip-hop', 'EDM', 'Rock', 'Custom']}
               formatValue={(v) => `BASE: ${v}`}
               hideLabel
               disabled={uploadedAudio !== null}
@@ -220,7 +220,7 @@ export const CreateAlbumPage = ({ onBack }: CreateAlbumPageProps) => {
                       setUploadedAudio(null);
                       setUploadedAudioDuration(null);
                       setDurationSec(30);
-                      setBase('None');
+                      setBase('Lo-fi');
                     }}
                     className="w-full bg-red-600/80 hover:bg-red-600 text-white font-pixel text-xs py-1 px-2 transition-all"
                   >

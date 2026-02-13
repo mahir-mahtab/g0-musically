@@ -9,11 +9,10 @@ export type ApiInitResponse = {
   subredditName: string | null;
 };
 
-export type AlbumBase = 'None' | 'Lo-fi' | 'Hip-hop' | 'EDM' | 'Rock' | 'Custom';
+export type AlbumBase = 'Lo-fi' | 'Hip-hop' | 'EDM' | 'Rock' | 'Custom';
 export type AlbumVibe = 'Chill' | 'Hype' | 'Focus' | 'Sad';
 
 export const BASE_MUSIC_PATH_BY_BASE: Record<AlbumBase, string> = {
-  None: '',
   'Lo-fi': '/wavs/collectathon.wav',
   'Hip-hop': '/wavs/overdrive.wav',
   EDM: '/wavs/synth.wav',
