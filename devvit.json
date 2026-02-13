@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "test-mumtio",
+  "name": "build-your-music",
   "post": {
     "dir": "dist/client",
     "entrypoints": {
@@ -13,7 +13,7 @@
       }
     }
   },
-  "server": { 
+  "server": {
     "dir": "dist/server",
     "entry": "index.cjs"
   },
@@ -29,7 +29,7 @@
     "items": [
       {
         "label": "Create a new post",
-        "description": "g0-musically",
+        "description": "Build Your Beat",
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/post-create"
@@ -41,6 +41,6 @@
     "build": "vite build"
   },
   "dev": {
-    "subreddit": "test_mumtio_dev"
+    "subreddit": "build_your_music_dev"
   }
 }
