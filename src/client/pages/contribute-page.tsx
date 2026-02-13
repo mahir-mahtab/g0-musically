@@ -49,13 +49,79 @@ const instruments: Instrument[] = [
       { name: 'Tom Low', file: '/drums/snd_tom_low.wav' },
     ],
   },
-  { id: 'piano', name: 'Piano' },
-  { id: 'bass', name: 'Bass' },
-  { id: 'guitar', name: 'Guitar' },
-  { id: 'vinyl-fx', name: 'Vinyl FX' },
-  { id: 'synth', name: 'Synth' },
-  { id: 'pad', name: 'Pad' },
-  { id: 'percussion', name: 'Percussion' },
+  {
+    id: 'piano',
+    name: 'Piano',
+    variations: [
+      { name: 'Piano A4', file: '/piano/snd_piano_A4.mp3' },
+      { name: 'Piano B4', file: '/piano/snd_piano_B4.mp3' },
+      { name: 'Piano C4', file: '/piano/snd_piano_c4.mp3' },
+      { name: 'Piano C7', file: '/piano/snd_piano_C7.mp3' },
+      { name: 'Piano C Major', file: '/piano/snd_piano_Cmajor.wav' },
+      { name: 'Piano E4', file: '/piano/snd_piano_E4.mp3' },
+      { name: 'Piano E6', file: '/piano/snd_piano_E6.mp3' },
+      { name: 'Piano F4', file: '/piano/snd_piano_F4.mp3' },
+      { name: 'Piano G4', file: '/piano/snd_piano_G4.mp3' },
+    ],
+  },
+  {
+    id: 'bass',
+    name: 'Bass',
+    variations: [
+      { name: 'Deep Bass', file: '/wavs/sine.wav' },
+      { name: 'Funky Bass', file: '/wavs/sine.wav' },
+      { name: 'Slap Bass', file: '/wavs/sine.wav' },
+      { name: 'Sub Bass', file: '/wavs/sine.wav' },
+    ],
+  },
+  {
+    id: 'guitar',
+    name: 'Guitar',
+    variations: [
+      { name: 'Acoustic Strum', file: '/wavs/sine.wav' },
+      { name: 'Electric Riff', file: '/wavs/sine.wav' },
+      { name: 'Clean Chord', file: '/wavs/sine.wav' },
+      { name: 'Distorted', file: '/wavs/sine.wav' },
+    ],
+  },
+  {
+    id: 'vinyl-fx',
+    name: 'Vinyl FX',
+    variations: [
+      { name: 'Crackle', file: '/wavs/sine.wav' },
+      { name: 'Pop', file: '/wavs/sine.wav' },
+      { name: 'Scratch', file: '/wavs/sine.wav' },
+    ],
+  },
+  {
+    id: 'synth',
+    name: 'Synth',
+    variations: [
+      { name: 'Lead Synth', file: '/wavs/synth.wav' },
+      { name: 'Arp Synth', file: '/wavs/sine.wav' },
+      { name: 'Bass Synth', file: '/wavs/sine.wav' },
+      { name: 'Pad Synth', file: '/wavs/sine.wav' },
+    ],
+  },
+  {
+    id: 'pad',
+    name: 'Pad',
+    variations: [
+      { name: 'Warm Pad', file: '/wavs/sine.wav' },
+      { name: 'Ambient Pad', file: '/wavs/sine.wav' },
+      { name: 'String Pad', file: '/wavs/sine.wav' },
+    ],
+  },
+  {
+    id: 'percussion',
+    name: 'Percussion',
+    variations: [
+      { name: 'Shaker', file: '/wavs/sine.wav' },
+      { name: 'Tambourine', file: '/wavs/sine.wav' },
+      { name: 'Cowbell', file: '/wavs/sine.wav' },
+      { name: 'Conga', file: '/wavs/sine.wav' },
+    ],
+  },
 ];
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> => {
@@ -557,13 +623,13 @@ export const ContributePage = ({
 
               {selectedInstrument?.variations && selectedInstrument.variations.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                  {selectedInstrument.variations.map((variation) => (
+                  {selectedInstrument.variations.map((variation, index) => (
                     <button
-                      key={variation.file}
+                      key={`${selectedInstrument.id}-${variation.name}-${index}`}
                       type="button"
                       onClick={() => handleVariationClick(variation)}
                       className={`border border-cyan-300/80 px-3 py-2 text-xs font-pixel hover:bg-cyan-300/10 active:bg-cyan-300/20 transition-colors ${
-                        selectedVariation?.file === variation.file ? 'bg-cyan-300/20' : ''
+                        selectedVariation?.name === variation.name ? 'bg-cyan-300/20' : ''
                       }`}
                     >
                       {variation.name}
